@@ -45,6 +45,23 @@ const updateSessionStatus = (id, status) => {
 };
 
 const addParticipant = (sessionId, displayName, role, userId = null) => {
+  // If this user already has a record in this session, just clear left_at (rejoin)
+  if (userId) {
+    const existing = db.prepare(
+      'SELECT id FROM participants WHERE session_id = ? AND user_id = ? AND left_at IS NOT NULL'
+    ).get(sessionId, userId);
+    if (existing) {
+      db.prepare('UPDATE participants SET left_at = NULL WHERE id = ?').run(existing.id);
+      return db.prepare('SELECT * FROM participants WHERE id = ?').get(existing.id);
+    }
+    // Also check if already connected (left_at IS NULL)
+    const alreadyConnected = db.prepare(
+      'SELECT id FROM participants WHERE session_id = ? AND user_id = ? AND left_at IS NULL'
+    ).get(sessionId, userId);
+    if (alreadyConnected) {
+      return db.prepare('SELECT * FROM participants WHERE id = ?').get(alreadyConnected.id);
+    }
+  }
   const id = uuidv4();
   const stmt = db.prepare('INSERT INTO participants (id, session_id, user_id, display_name, role) VALUES (?, ?, ?, ?, ?)');
   stmt.run(id, sessionId, userId, displayName, role);
@@ -70,7 +87,7 @@ const getMessages = (sessionId) => {
 const getAgentSessions = (agentId) => {
   return db.prepare(`
     SELECT s.*, 
-      (SELECT COUNT(DISTINCT user_id) FROM participants p WHERE p.session_id = s.id AND p.role = 'customer') as participant_count,
+      (SELECT COUNT(DISTINCT COALESCE(p.user_id, p.display_name)) FROM participants p WHERE p.session_id = s.id) as participant_count,
       CASE 
         WHEN s.status = 'ended' THEN s.ended_at - s.started_at
         WHEN s.status = 'active' THEN strftime('%s','now') - s.started_at

@@ -54,17 +54,27 @@ db.exec(`
 `);
 
 // Seed users
-const checkUsers = db.prepare('SELECT count(*) as count FROM users');
-const { count } = checkUsers.get();
+const checkAgent = db.prepare("SELECT count(*) as count FROM users WHERE username = 'agent@atomberg.com'");
+const { count: agentCount } = checkAgent.get();
 
-if (count === 0) {
+if (agentCount === 0) {
+  // Try to update existing agent1 / admin if they exist to preserve foreign keys
+  const updateUsername = db.prepare('UPDATE users SET username = ?, password_hash = ? WHERE username = ?');
+  
+  const agentHash = bcrypt.hashSync('agent', 10);
+  const agentRes = updateUsername.run('agent@atomberg.com', agentHash, 'agent1');
+  
+  const adminHash = bcrypt.hashSync('admin', 10);
+  const adminRes = updateUsername.run('admin@atomberg.com', adminHash, 'admin');
+
+  // If they didn't exist to be updated (i.e. fresh DB), insert new ones
   const insertUser = db.prepare('INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)');
-  
-  const hash1 = bcrypt.hashSync('agent123', 10);
-  insertUser.run(uuid.v4(), 'agent1', hash1, 'agent');
-  
-  const hash2 = bcrypt.hashSync('admin123', 10);
-  insertUser.run(uuid.v4(), 'admin', hash2, 'admin');
+  if (agentRes.changes === 0) {
+    insertUser.run(uuid.v4(), 'agent@atomberg.com', agentHash, 'agent');
+  }
+  if (adminRes.changes === 0) {
+    insertUser.run(uuid.v4(), 'admin@atomberg.com', adminHash, 'admin');
+  }
 }
 
 module.exports = db;

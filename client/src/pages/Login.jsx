@@ -9,9 +9,24 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showTokenInput, setShowTokenInput] = useState(false);
+  const [joinToken, setJoinToken] = useState('');
 
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  const handleJoinWithToken = () => {
+    if (!joinToken.trim()) return;
+    let token = joinToken.trim();
+    if (token.includes('/join/')) {
+      const parts = token.split('/join/');
+      token = parts[parts.length - 1];
+    }
+    token = token.replace(/\/$/, '');
+    if (token) {
+      navigate(`/join/${token}`);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -58,8 +73,8 @@ export default function Login() {
 
         <div className="demo-accounts-list" style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
           {[
-            { role: 'Agent', username: 'agent1', pw: 'agent123' },
-            { role: 'Admin', username: 'admin', pw: 'admin123' },
+            { role: 'Agent', username: 'agent@atomberg.com', pw: 'agent' },
+            { role: 'Admin', username: 'admin@atomberg.com', pw: 'admin' },
           ].map(acc => (
             <button
               key={acc.role}
@@ -105,46 +120,102 @@ export default function Login() {
               style={{ height: 64, width: 'auto', display: 'block' }}
             />
           </div>
-          <h1 className="login-title">Welcome back</h1>
-          <p className="login-subtitle">Sign in to your agent account</p>
 
-          <form className="login-form" onSubmit={handleSubmit}>
-            {error && <div className="error-message">{error}</div>}
+          {!showTokenInput ? (
+            <>
+              <h1 className="login-title">Welcome back</h1>
+              <p className="login-subtitle">Sign in to your agent account</p>
 
-            <div className="form-group">
-              <label htmlFor="username">Username</label>
-              <input
-                id="username"
-                type="text"
-                required
-                placeholder="Enter username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoComplete="username"
-              />
-            </div>
+              <form className="login-form" onSubmit={handleSubmit}>
+                {error && <div className="error-message">{error}</div>}
 
-            <div className="form-group">
-              <label htmlFor="password">Password</label>
-              <input
-                id="password"
-                type="password"
-                required
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-              />
-            </div>
+                <div className="form-group">
+                  <label htmlFor="username">Username</label>
+                  <input
+                    id="username"
+                    type="text"
+                    required
+                    placeholder="Enter username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    autoComplete="username"
+                  />
+                </div>
 
-            <button type="submit" disabled={loading} className="submit-btn">
-              {loading ? 'Signing in…' : 'Sign in'}
-            </button>
-          </form>
+                <div className="form-group">
+                  <label htmlFor="password">Password</label>
+                  <input
+                    id="password"
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                </div>
 
-          <p style={{ marginTop: 24, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
-            Customer? <span style={{ color: 'var(--brand-yellow)' }}>Use your invite link directly.</span>
-          </p>
+                <button type="submit" disabled={loading} className="submit-btn">
+                  {loading ? 'Signing in…' : 'Sign in'}
+                </button>
+              </form>
+
+              <div style={{ marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 16, textAlign: 'center' }}>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  Customer?{' '}
+                  <button
+                    type="button"
+                    onClick={() => setShowTokenInput(true)}
+                    style={{ background: 'none', border: 'none', color: 'var(--brand-yellow)', textDecoration: 'underline', cursor: 'pointer', fontSize: 12, padding: 0, fontFamily: 'inherit' }}
+                  >
+                    Join call with code / link
+                  </button>
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <h1 className="login-title">Join a Call</h1>
+              <p className="login-subtitle">Enter your invite code or paste the full link</p>
+
+              {error && <div className="error-message" style={{ marginBottom: 12 }}>{error}</div>}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+                <div className="form-group">
+                  <label htmlFor="joinToken">Invite code or link</label>
+                  <input
+                    id="joinToken"
+                    type="text"
+                    placeholder="e.g. abc-123-xyz or https://…/join/abc-123-xyz"
+                    value={joinToken}
+                    onChange={(e) => setJoinToken(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleJoinWithToken()}
+                    autoFocus
+                    autoComplete="off"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleJoinWithToken}
+                  className="submit-btn"
+                  style={{ marginTop: 4 }}
+                >
+                  Join Call
+                </button>
+              </div>
+
+              <div style={{ marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 16, textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowTokenInput(false)}
+                  style={{ background: 'none', border: 'none', color: 'var(--brand-yellow)', textDecoration: 'underline', cursor: 'pointer', fontSize: 12, padding: 0, fontFamily: 'inherit' }}
+                >
+                  ← Back to Agent Sign in
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -53,12 +53,6 @@ class Recorder {
     const transports = [];
     const consumers = [];
 
-    // These are the ports FFmpeg will LISTEN on (separate from mediasoup's ports)
-    let audioRtpPort = null;
-    let audioRtcpPort = null;
-    let videoRtpPort = null;
-    let videoRtcpPort = null;
-
     // Create a PlainTransport + consumer for each producer
     for (const { producer, kind } of producers) {
       try {
@@ -87,15 +81,11 @@ class Recorder {
           paused: true, // Start paused, we will resume after FFmpeg starts
         });
 
-        consumers.push(consumer);
+        consumer.rtpPort = remoteRtpPort;
+        consumer.rtcpPort = remoteRtcpPort;
+        consumer.kind = kind;
 
-        if (kind === 'audio') {
-          audioRtpPort = remoteRtpPort;
-          audioRtcpPort = remoteRtcpPort;
-        } else if (kind === 'video') {
-          videoRtpPort = remoteRtpPort;
-          videoRtcpPort = remoteRtcpPort;
-        }
+        consumers.push(consumer);
 
         console.log(
           `[Recorder] ${kind} transport: mediasoup port ${plainTransport.tuple.localPort}` +
@@ -106,12 +96,18 @@ class Recorder {
       }
     }
 
+    const audioConsumers = consumers.filter(c => c.kind === 'audio');
+    const videoConsumers = consumers.filter(c => c.kind === 'video');
+
     // We need at least one track to record
-    if (!audioRtpPort && !videoRtpPort) {
+    if (audioConsumers.length === 0 && videoConsumers.length === 0) {
       console.error('[Recorder] No producers to record');
       for (const t of transports) { try { t.close(); } catch {} }
       throw new Error('No audio or video producers available for recording');
     }
+
+    // Sort to have audios first, then videos to match expected order
+    const orderedConsumers = [...audioConsumers, ...videoConsumers];
 
     // ── Build SDP for FFmpeg input ──
     // The ports in the SDP are the ones FFmpeg will LISTEN on.
@@ -123,49 +119,46 @@ class Recorder {
       't=0 0',
     ];
 
-    // Audio SDP section
-    if (audioRtpPort) {
-      const audioConsumer = consumers.find(c => c.kind === 'audio');
-      const audioCodec = audioConsumer?.rtpParameters?.codecs?.[0];
-      const audioPayloadType = audioCodec?.payloadType || 111;
-      const audioClockRate = audioCodec?.clockRate || 48000;
-      const audioChannels = audioCodec?.channels || 2;
-      const audioMime = audioCodec?.mimeType?.split('/')?.[1]?.toLowerCase() || 'opus';
+    for (const consumer of orderedConsumers) {
+      const { kind, rtpPort, rtcpPort } = consumer;
+      const codec = consumer.rtpParameters?.codecs?.[0];
 
-      sdpLines.push(`m=audio ${audioRtpPort} RTP/AVP ${audioPayloadType}`);
-      if (audioRtcpPort) {
-        sdpLines.push(`a=rtcp:${audioRtcpPort}`);
-      }
-      sdpLines.push(`a=rtpmap:${audioPayloadType} ${audioMime}/${audioClockRate}/${audioChannels}`);
-      if (audioMime === 'opus') {
-        sdpLines.push(`a=fmtp:${audioPayloadType} minptime=10;useinbandfec=1`);
-      }
-      sdpLines.push('a=recvonly');
-    }
+      if (kind === 'audio') {
+        const audioPayloadType = codec?.payloadType || 111;
+        const audioClockRate = codec?.clockRate || 48000;
+        const audioChannels = codec?.channels || 2;
+        const audioMime = codec?.mimeType?.split('/')?.[1]?.toLowerCase() || 'opus';
 
-    // Video SDP section
-    if (videoRtpPort) {
-      const videoConsumer = consumers.find(c => c.kind === 'video');
-      const videoCodec = videoConsumer?.rtpParameters?.codecs?.[0];
-      const videoPayloadType = videoCodec?.payloadType || 96;
-      const videoClockRate = videoCodec?.clockRate || 90000;
-      const videoMime = videoCodec?.mimeType?.split('/')?.[1]?.toUpperCase() || 'VP8';
+        sdpLines.push(`m=audio ${rtpPort} RTP/AVP ${audioPayloadType}`);
+        if (rtcpPort) {
+          sdpLines.push(`a=rtcp:${rtcpPort}`);
+        }
+        sdpLines.push(`a=rtpmap:${audioPayloadType} ${audioMime}/${audioClockRate}/${audioChannels}`);
+        if (audioMime === 'opus') {
+          sdpLines.push(`a=fmtp:${audioPayloadType} minptime=10;useinbandfec=1`);
+        }
+        sdpLines.push('a=recvonly');
+      } else if (kind === 'video') {
+        const videoPayloadType = codec?.payloadType || 96;
+        const videoClockRate = codec?.clockRate || 90000;
+        const videoMime = codec?.mimeType?.split('/')?.[1]?.toUpperCase() || 'VP8';
 
-      sdpLines.push(`m=video ${videoRtpPort} RTP/AVP ${videoPayloadType}`);
-      if (videoRtcpPort) {
-        sdpLines.push(`a=rtcp:${videoRtcpPort}`);
-      }
-      sdpLines.push(`a=rtpmap:${videoPayloadType} ${videoMime}/${videoClockRate}`);
+        sdpLines.push(`m=video ${rtpPort} RTP/AVP ${videoPayloadType}`);
+        if (rtcpPort) {
+          sdpLines.push(`a=rtcp:${rtcpPort}`);
+        }
+        sdpLines.push(`a=rtpmap:${videoPayloadType} ${videoMime}/${videoClockRate}`);
 
-      // Add profile-level-id for H264
-      if (videoMime === 'H264') {
-        const profileLevelId = videoCodec?.parameters?.['profile-level-id'] || '4d0032';
-        const packetizationMode = videoCodec?.parameters?.['packetization-mode'] || 1;
-        sdpLines.push(
-          `a=fmtp:${videoPayloadType} profile-level-id=${profileLevelId};packetization-mode=${packetizationMode}`
-        );
+        // Add profile-level-id for H264
+        if (videoMime === 'H264') {
+          const profileLevelId = codec?.parameters?.['profile-level-id'] || '4d0032';
+          const packetizationMode = codec?.parameters?.['packetization-mode'] || 1;
+          sdpLines.push(
+            `a=fmtp:${videoPayloadType} profile-level-id=${profileLevelId};packetization-mode=${packetizationMode}`
+          );
+        }
+        sdpLines.push('a=recvonly');
       }
-      sdpLines.push('a=recvonly');
     }
 
     const sdpContent = sdpLines.join('\r\n') + '\r\n';
@@ -179,33 +172,66 @@ class Recorder {
 
     // ── Build FFmpeg command ──
     const ffmpegArgs = [
-      '-loglevel', 'info', // Changed to info to see what's happening
+      '-loglevel', 'info',
       '-protocol_whitelist', 'file,udp,rtp',
-      '-analyzeduration', '1000000', // Speed up probe (1 second)
+      '-analyzeduration', '1000000',
       '-probesize', '1000000',
       '-fflags', '+genpts',
       '-i', sdpPath,
     ];
 
-    // Output encoding: transcode to ensure container compatibility
-    if (audioRtpPort && videoRtpPort) {
+    const filterParts = [];
+    const mapArgs = [];
+
+    const numAudio = audioConsumers.length;
+    const numVideo = videoConsumers.length;
+
+    // Audio filter: mix multiple audios or map single audio
+    if (numAudio > 1) {
+      let audioInputs = '';
+      for (let i = 0; i < numAudio; i++) {
+        audioInputs += `[0:a:${i}]`;
+      }
+      filterParts.push(`${audioInputs}amix=inputs=${numAudio}:duration=longest[outa]`);
+      mapArgs.push('-map', '[outa]');
+    } else if (numAudio === 1) {
+      mapArgs.push('-map', '0:a:0');
+    }
+
+    // Video filter: stack multiple videos or map single video
+    if (numVideo > 1) {
+      let videoScaleParts = [];
+      let hstackInputs = '';
+      for (let i = 0; i < numVideo; i++) {
+        videoScaleParts.push(`[0:v:${i}]scale=640:480,setsar=1[v${i}]`);
+        hstackInputs += `[v${i}]`;
+      }
+      filterParts.push(`${videoScaleParts.join('; ')}; ${hstackInputs}hstack=inputs=${numVideo}[outv]`);
+      mapArgs.push('-map', '[outv]');
+    } else if (numVideo === 1) {
+      filterParts.push(`[0:v:0]scale=1280:720,setsar=1[outv]`);
+      mapArgs.push('-map', '[outv]');
+    }
+
+    if (filterParts.length > 0) {
+      ffmpegArgs.push('-filter_complex', filterParts.join('; '));
+    }
+    ffmpegArgs.push(...mapArgs);
+
+    if (numVideo > 0) {
       ffmpegArgs.push(
-        '-map', '0:a?',
-        '-map', '0:v?',
-        '-c:a', 'aac',
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
-        '-tune', 'zerolatency',
+        '-tune', 'zerolatency'
       );
-    } else if (audioRtpPort) {
+    } else {
+      ffmpegArgs.push('-vn');
+    }
+
+    if (numAudio > 0) {
       ffmpegArgs.push('-c:a', 'aac');
     } else {
-      ffmpegArgs.push(
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-tune', 'zerolatency',
-        '-an',
-      );
+      ffmpegArgs.push('-an');
     }
 
     ffmpegArgs.push(

@@ -44,10 +44,10 @@ export default function AdminDashboard() {
     if (switching) return;
     setSwitching(true);
     try {
-      await login('agent1', 'agent123');
+      await login('agent@atomberg.com', 'agent');
       navigate('/dashboard');
     } catch (err) {
-      alert('Failed to switch to Agent role.');
+      console.error('Failed to switch to Agent role:', err);
     } finally {
       setSwitching(false);
     }

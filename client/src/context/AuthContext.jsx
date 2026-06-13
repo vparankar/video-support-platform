@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
 import { login as apiLogin } from '../api/api';
 
 const AuthContext = createContext(null);
@@ -16,7 +16,7 @@ export function AuthProvider({ children }) {
   });
   const [token, setToken] = useState(() => localStorage.getItem('token') || null);
 
-  const login = async (username, password) => {
+  const login = useCallback(async (username, password) => {
     const res = await apiLogin(username, password);
     const { token: newToken, user: newUser } = res.data;
     localStorage.setItem('token', newToken);
@@ -24,19 +24,39 @@ export function AuthProvider({ children }) {
     setToken(newToken);
     setUser(newUser);
     return newUser;
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
-  };
+  }, []);
+
+  // Convenience: re-hydrate state from localStorage without an API call.
+  // Useful after another piece of code (e.g. JoinPage) writes directly to
+  // localStorage and then needs AuthContext to pick up the change.
+  const refreshFromStorage = useCallback(() => {
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    if (savedToken && savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+        setToken(savedToken);
+      } catch {
+        // corrupt data — clear it
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setToken(null);
+        setUser(null);
+      }
+    }
+  }, []);
 
   const isAuthenticated = !!token;
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated }}>
+    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated, refreshFromStorage }}>
       {children}
     </AuthContext.Provider>
   );

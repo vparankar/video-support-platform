@@ -8,12 +8,15 @@ import JoinPage from './pages/JoinPage';
 
 // ── Route guards ───────────────────────────────
 function ProtectedRoute({ children, roles }) {
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (roles && !roles.includes(user?.role)) {
-    // Customer trying to access agent/admin pages → log them out
-    // (temp customers shouldn't be on dashboard)
-    logout();
+    // Redirect unauthorized roles to their home instead of logging out.
+    // This prevents the crash when an admin navigates to /dashboard
+    // (agent page) — they get sent to /admin instead of being logged out.
+    if (user?.role === 'admin') return <Navigate to="/admin" replace />;
+    if (user?.role === 'agent') return <Navigate to="/dashboard" replace />;
+    // Customers shouldn't be on dashboard pages at all
     return <Navigate to="/login" replace />;
   }
   return children;
@@ -22,17 +25,16 @@ function ProtectedRoute({ children, roles }) {
 function RootRedirect() {
   const { isAuthenticated, user } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  // Only agents/admins have a dashboard; customers shouldn't land here
-  if (user?.role === 'agent' || user?.role === 'admin') {
-    return <Navigate to="/dashboard" replace />;
-  }
+  if (user?.role === 'admin') return <Navigate to="/admin" replace />;
+  if (user?.role === 'agent') return <Navigate to="/dashboard" replace />;
   return <Navigate to="/login" replace />;
 }
 
 function LoginGuard() {
   const { isAuthenticated, user } = useAuth();
-  if (isAuthenticated && (user?.role === 'agent' || user?.role === 'admin')) {
-    return <Navigate to="/dashboard" replace />;
+  if (isAuthenticated) {
+    if (user?.role === 'admin') return <Navigate to="/admin" replace />;
+    if (user?.role === 'agent') return <Navigate to="/dashboard" replace />;
   }
   return <Login />;
 }
@@ -47,7 +49,7 @@ export default function App() {
           <Route path="/login" element={<LoginGuard />} />
 
           <Route path="/dashboard" element={
-            <ProtectedRoute roles={['agent', 'admin']}>
+            <ProtectedRoute roles={['agent']}>
               <AgentDashboard />
             </ProtectedRoute>
           } />

@@ -18,7 +18,16 @@ api.interceptors.request.use((config) => {
 export default api;
 
 // Export the server base URL for socket.io connections
-export const getServerUrl = () => import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
+export const getServerUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  if (import.meta.env.DEV) {
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+    return `http://${host}:3001`;
+  }
+  return '';
+};
 
 export const resolveFileUrl = (fileUrl) => {
   if (!fileUrl) return '#';

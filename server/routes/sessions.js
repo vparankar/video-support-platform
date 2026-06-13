@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const models = require('../db/models');
 const { verifyToken, verifyRole } = require('../middleware/authMiddleware');
 
@@ -49,7 +50,24 @@ router.get('/', verifyToken, verifyRole('agent', 'admin'), (req, res) => {
     } else {
       sessions = models.getAgentSessions(req.user.id);
     }
-    res.json(sessions);
+
+    const recordingsDir = path.join(__dirname, '..', 'uploads', 'recordings');
+    const sessionsWithRecordingCheck = sessions.map(sess => {
+      const recordingPath = path.join(recordingsDir, `${sess.id}.mp4`);
+      let recordingExists = false;
+      try {
+        if (fs.existsSync(recordingPath)) {
+          const stats = fs.statSync(recordingPath);
+          recordingExists = stats.size > 0;
+        }
+      } catch (err) {}
+      return {
+        ...sess,
+        recording_exists: recordingExists
+      };
+    });
+
+    res.json(sessionsWithRecordingCheck);
   } catch (err) {
     console.error('Get sessions error:', err);
     res.status(500).json({ error: 'Internal server error' });

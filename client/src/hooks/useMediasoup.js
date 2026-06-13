@@ -73,6 +73,9 @@ export default function useMediasoup(socket, sessionId, userId, displayName, rol
       if (existing) {
         stream = existing.stream;
         stream.addTrack(consumer.track);
+        if (kind === 'video') {
+          existing.isVideoOff = false;
+        }
       } else {
         stream = new MediaStream([consumer.track]);
       }
@@ -81,6 +84,7 @@ export default function useMediasoup(socket, sessionId, userId, displayName, rol
         stream,
         displayName: appData?.displayName || 'Peer',
         role: appData?.role || 'customer',
+        isVideoOff: existing ? existing.isVideoOff : (kind !== 'video'),
       });
 
       // Flush to React state (new Map triggers re-render)
@@ -204,16 +208,11 @@ export default function useMediasoup(socket, sessionId, userId, displayName, rol
           producersRef.current.set('audio', audioProducer);
         }
 
-        // 7. Produce video (with simulcast encodings)
+        // 7. Produce video
         const videoTrack = stream.getVideoTracks()[0];
         if (videoTrack) {
           const videoProducer = await sendTransport.produce({
             track: videoTrack,
-            encodings: [
-              { maxBitrate: 100000 },
-              { maxBitrate: 300000 },
-              { maxBitrate: 900000 },
-            ],
             appData: { displayName },
           });
           producersRef.current.set('video', videoProducer);
@@ -265,6 +264,7 @@ export default function useMediasoup(socket, sessionId, userId, displayName, rol
           stream: new MediaStream(),
           displayName,
           role: peerRole,
+          isVideoOff: true,
         });
         setRemoteStreams(new Map(remoteStreamsRef.current));
       }
@@ -301,11 +301,21 @@ export default function useMediasoup(socket, sessionId, userId, displayName, rol
       setIsConnected(false);
     };
 
+    // Remote peer toggled video
+    const onPeerVideoStateChanged = ({ socketId, isVideoOff }) => {
+      const entry = remoteStreamsRef.current.get(socketId);
+      if (entry) {
+        entry.isVideoOff = isVideoOff;
+        setRemoteStreams(new Map(remoteStreamsRef.current));
+      }
+    };
+
     socket.on('newPeer', onNewPeer);
     socket.on('newProducer', onNewProducer);
     socket.on('producerClosed', onProducerClosed);
     socket.on('peerLeft', onPeerLeft);
     socket.on('sessionEnded', onSessionEnded);
+    socket.on('peerVideoStateChanged', onPeerVideoStateChanged);
 
     // ── Cleanup ─────────────────────────────────────
     return () => {
@@ -316,6 +326,7 @@ export default function useMediasoup(socket, sessionId, userId, displayName, rol
       socket.off('producerClosed', onProducerClosed);
       socket.off('peerLeft', onPeerLeft);
       socket.off('sessionEnded', onSessionEnded);
+      socket.off('peerVideoStateChanged', onPeerVideoStateChanged);
 
       // Close all producers
       producersRef.current.forEach((p) => { try { p.close(); } catch {} });
@@ -347,22 +358,47 @@ export default function useMediasoup(socket, sessionId, userId, displayName, rol
     }
   }, []);
 
-  const toggleVideo = useCallback(() => {
+  const toggleVideo = useCallback(async () => {
     const producer = producersRef.current.get('video');
     if (!producer) return;
+
     if (producer.paused) {
-      producer.resume();
-      // Re-enable the track so the camera LED turns on
-      const track = localStreamRef.current?.getVideoTracks()[0];
-      if (track) track.enabled = true;
-      setIsVideoOff(false);
+      try {
+        // Re-acquire a fresh video track to avoid black frames
+        const newStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const newTrack = newStream.getVideoTracks()[0];
+
+        // Replace the track on the producer (sends new track to SFU)
+        await producer.replaceTrack({ track: newTrack });
+        producer.resume();
+
+        // Update the local stream so the local preview shows the new track
+        const localStream = localStreamRef.current;
+        if (localStream) {
+          const oldTrack = localStream.getVideoTracks()[0];
+          if (oldTrack) {
+            localStream.removeTrack(oldTrack);
+            oldTrack.stop();
+          }
+          localStream.addTrack(newTrack);
+        }
+
+        setIsVideoOff(false);
+        socket.emit('toggleVideoState', { sessionId, isVideoOff: false });
+      } catch (err) {
+        console.error('[useMediasoup] Failed to re-acquire camera:', err);
+      }
     } else {
       producer.pause();
+      // Fully stop the track so the camera LED turns off
       const track = localStreamRef.current?.getVideoTracks()[0];
-      if (track) track.enabled = false;
+      if (track) {
+        track.stop();
+      }
       setIsVideoOff(true);
+      socket.emit('toggleVideoState', { sessionId, isVideoOff: true });
     }
-  }, []);
+  }, [socket, sessionId]);
 
   return {
     localStream,

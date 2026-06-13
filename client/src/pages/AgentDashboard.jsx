@@ -30,11 +30,26 @@ export default function AgentDashboard() {
   const [newTitle, setNewTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedSessions, setCopiedSessions] = useState({});
   const [showChatModal, setShowChatModal] = useState(false);
   const [chatSession, setChatSession] = useState(null);
   const [chatLoading, setChatLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
+
+  const sortedSessions = [...sessions].sort((a, b) => {
+    // Active calls first
+    if (a.status === 'active' && b.status !== 'active') return -1;
+    if (a.status !== 'active' && b.status === 'active') return 1;
+
+    // Waiting calls second
+    if (a.status === 'waiting' && b.status !== 'waiting') return -1;
+    if (a.status !== 'waiting' && b.status === 'waiting') return 1;
+
+    // Default: descending by created_at
+    return b.created_at - a.created_at;
+  });
 
   const loadSessions = useCallback(async () => {
     try {
@@ -54,6 +69,7 @@ export default function AgentDashboard() {
     try {
       const r = await createSession(newTitle.trim());
       setInviteLink(`${window.location.origin}/join/${r.data.invite_token}`);
+      setCopiedLink(false);
       setNewTitle('');
       loadSessions();
     } catch {}
@@ -64,6 +80,7 @@ export default function AgentDashboard() {
     setShowNewModal(false);
     setNewTitle('');
     setInviteLink('');
+    setCopiedLink(false);
   };
 
   const handleViewRecord = async (id) => {
@@ -85,10 +102,10 @@ export default function AgentDashboard() {
     if (switching) return;
     setSwitching(true);
     try {
-      await login('admin', 'admin123');
+      await login('admin@atomberg.com', 'admin');
       navigate('/admin');
     } catch (err) {
-      alert('Failed to switch to Admin role.');
+      console.error('Failed to switch to Admin role:', err);
     } finally {
       setSwitching(false);
     }
@@ -206,18 +223,25 @@ export default function AgentDashboard() {
           </button>
         </div>
 
-        {/* Table list card */}
-        <div style={{ padding: '0 32px 32px' }}>
+        {/* Active & Waiting Sessions */}
+        <div style={{ padding: '0 32px 24px' }}>
           <div className="card">
-            <div className="card-header">
-              <span className="card-title">All Call Sessions</span>
-              <span className="badge badge-gray">{sessions.length} sessions</span>
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="card-title">Active & Pending Calls</span>
+                {sortedSessions.some(s => s.status === 'active' || s.status === 'waiting') && (
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--brand-yellow)', animation: 'recPulse 2s infinite' }} />
+                )}
+              </div>
+              <span className="badge badge-amber">
+                {sortedSessions.filter(s => s.status === 'active' || s.status === 'waiting').length} active
+              </span>
             </div>
             <div className="card-body" style={{ padding: 0 }}>
               {loading ? (
                 <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading…</div>
-              ) : sessions.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No sessions yet. Create one to get started.</div>
+              ) : sortedSessions.filter(s => s.status === 'active' || s.status === 'waiting').length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No active support calls right now.</div>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
                   <table className="data-table">
@@ -227,19 +251,85 @@ export default function AgentDashboard() {
                         <th>Status</th>
                         <th>Created</th>
                         <th>Participants</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedSessions.filter(s => s.status === 'active' || s.status === 'waiting').map(sess => (
+                        <tr key={sess.id}>
+                          <td style={{ fontWeight: 600, color: 'var(--text)' }}>{sess.title}</td>
+                          <td>
+                            <span className={`badge ${
+                              sess.status === 'active' ? 'badge-green' : 'badge-amber'
+                            }`}>
+                              {sess.status}
+                            </span>
+                          </td>
+                          <td>{formatDate(sess.created_at)}</td>
+                          <td>{sess.participant_count ?? 0}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button className="btn btn-primary btn-sm" onClick={() => navigate(`/room/${sess.id}`)}>
+                                Join Call
+                              </button>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => {
+                                  const link = `${window.location.origin}/join/${sess.invite_token}`;
+                                  navigator.clipboard.writeText(link);
+                                  setCopiedSessions(prev => ({ ...prev, [sess.id]: true }));
+                                  setTimeout(() => {
+                                    setCopiedSessions(prev => ({ ...prev, [sess.id]: false }));
+                                  }, 2000);
+                                }}
+                              >
+                                {copiedSessions[sess.id] ? 'Copied!' : 'Copy Link'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Completed Sessions */}
+        <div style={{ padding: '0 32px 32px' }}>
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Completed Call History</span>
+              <span className="badge badge-gray">
+                {sortedSessions.filter(s => s.status === 'ended').length} sessions
+              </span>
+            </div>
+            <div className="card-body" style={{ padding: 0 }}>
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading…</div>
+              ) : sortedSessions.filter(s => s.status === 'ended').length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No completed calls found.</div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Title</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Total Participants</th>
                         <th>Duration</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {sessions.map(sess => (
+                      {sortedSessions.filter(s => s.status === 'ended').map(sess => (
                         <tr key={sess.id}>
                           <td style={{ fontWeight: 600, color: 'var(--text)' }}>{sess.title}</td>
                           <td>
-                            <span className={`badge ${
-                              sess.status === 'active' ? 'badge-green' :
-                              sess.status === 'waiting' ? 'badge-amber' : 'badge-gray'
-                            }`}>
+                            <span className="badge badge-gray">
                               {sess.status}
                             </span>
                           </td>
@@ -248,25 +338,18 @@ export default function AgentDashboard() {
                           <td>{duration(sess.created_at, sess.ended_at)}</td>
                           <td>
                             <div style={{ display: 'flex', gap: 6 }}>
-                              {(sess.status === 'active' || sess.status === 'waiting') && (
-                                <button className="btn btn-primary btn-sm" onClick={() => navigate(`/room/${sess.id}`)}>
-                                  Join Call
-                                </button>
-                              )}
-                              {sess.status === 'ended' && (
-                                <>
-                                  <button className="btn btn-secondary btn-sm" onClick={() => handleViewRecord(sess.id)}>
-                                    View Record
-                                  </button>
-                                  <a
-                                    href={resolveFileUrl(`/uploads/recordings/${sess.id}.mp4`)}
-                                    download
-                                    className="btn btn-success btn-sm"
-                                    title="Download call recording"
-                                  >
-                                    Recording
-                                  </a>
-                                </>
+                              <button className="btn btn-secondary btn-sm" onClick={() => handleViewRecord(sess.id)}>
+                                View Record
+                              </button>
+                              {sess.recording_exists && (
+                                <a
+                                  href={resolveFileUrl(`/uploads/recordings/${sess.id}.mp4`)}
+                                  download
+                                  className="btn btn-success btn-sm"
+                                  title="Download call recording"
+                                >
+                                  Recording
+                                </a>
                               )}
                             </div>
                           </td>
@@ -322,10 +405,14 @@ export default function AgentDashboard() {
                     style={confirmBtn}
                     onClick={() => {
                       navigator.clipboard.writeText(inviteLink);
-                      alert('Copied to clipboard!');
+                      setCopiedLink(true);
+                      // Auto-close modal after brief feedback
+                      setTimeout(() => {
+                        closeNewModal();
+                      }, 1200);
                     }}
                   >
-                    Copy Link
+                    {copiedLink ? 'Copied!' : 'Copy Link'}
                   </button>
                 </div>
               </>

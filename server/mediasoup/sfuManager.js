@@ -1,4 +1,18 @@
 const mediasoup = require('mediasoup');
+const os = require('os');
+
+// Auto-detect a non-loopback IPv4 address for LAN connectivity
+function getLocalIp() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return '127.0.0.1';
+}
 
 const mediaCodecs = [
   { kind: 'audio', mimeType: 'audio/opus', clockRate: 48000, channels: 2 },
@@ -61,19 +75,16 @@ class SfuManager {
       room.peers.set(socketId, peer);
     }
 
+    // Determine the announced IP: explicit env var > auto-detected LAN IP
+    const announcedIp = process.env.ANNOUNCED_IP || getLocalIp();
+    console.log(`[SFU] WebRTC transport announced IP: ${announcedIp}`);
+
     const listenIps = [
       {
-        ip: '127.0.0.1',
-        announcedIp: '127.0.0.1'
+        ip: '0.0.0.0',
+        announcedIp,
       }
     ];
-
-    if (process.env.ANNOUNCED_IP && process.env.ANNOUNCED_IP !== '127.0.0.1') {
-      listenIps.push({
-        ip: '0.0.0.0',
-        announcedIp: process.env.ANNOUNCED_IP
-      });
-    }
 
     const transport = await room.router.createWebRtcTransport({
       listenIps,
@@ -126,6 +137,7 @@ class SfuManager {
     transport.appData.producing = true;
 
     const producer = await transport.produce({ kind, rtpParameters, appData });
+    console.log(`[SFU] produce SUCCESS: socket ${socketId} is producing ${kind} (producerId: ${producer.id})`);
 
     producer.on('transportclose', () => {
       producer.close();
@@ -160,6 +172,7 @@ class SfuManager {
       rtpCapabilities,
       paused: true
     });
+    console.log(`[SFU] consume SUCCESS: socket ${consumerSocketId} is consuming producer ${producerId} from socket ${producerSocketId} (consumerId: ${consumer.id})`);
 
     consumer.on('transportclose', () => {
       consumer.close();

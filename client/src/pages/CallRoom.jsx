@@ -47,7 +47,7 @@ export default function CallRoom() {
     toggleVideo,
   } = useMediasoup(socket, sessionId, user?.id, user?.username, user?.role);
 
-  const { messages, sendMessage, sendFileMessage } = useChat(socket, sessionId, user?.id, user?.username);
+  const { messages, sendMessage, sendFileMessage } = useChat(socket, sessionId, user?.id, user?.username, isConnected);
 
   // ── Recording (agent-only) ─────────────────────────
   const [isRecording, setIsRecording] = useState(false);

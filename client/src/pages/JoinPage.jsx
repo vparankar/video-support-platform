@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getJoinInfo, register } from '../api/api';
+import { useAuth } from '../context/AuthContext';
 import atombergLogo from '../assets/atomberg.png';
 
 /**
@@ -13,6 +14,7 @@ import atombergLogo from '../assets/atomberg.png';
 export default function JoinPage() {
   const { token } = useParams();
   const navigate = useNavigate();
+  const { refreshFromStorage } = useAuth();
 
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -44,17 +46,26 @@ export default function JoinPage() {
     setError('');
 
     try {
-      // Register a temporary customer account
-      const username = `${displayName.trim()}_${Date.now()}`;
+      // Register a temporary customer account (unique username for DB)
+      const cleanName = displayName.trim();
+      const username = `${cleanName}_${Date.now()}`;
       const res = await register(username, 'pass123', 'customer');
       const { token: authToken, user } = res.data;
 
+      // Override the username with the clean display name the customer entered.
+      // The JWT contains the unique username, but we want the UI to show the
+      // human-readable name the customer typed.
+      const userWithDisplayName = { ...user, username: cleanName };
+
       // Persist to localStorage so AuthContext picks it up
       localStorage.setItem('token', authToken);
-      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('user', JSON.stringify(userWithDisplayName));
 
-      // Navigate to the call room via page redirect to reset AuthContext
-      window.location.href = `/room/${session.id}`;
+      // Tell AuthContext to re-read from localStorage (no full page reload needed)
+      refreshFromStorage();
+
+      // Navigate to the call room via React Router (no page reload)
+      navigate(`/room/${session.id}`);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to join session');
       setJoining(false);

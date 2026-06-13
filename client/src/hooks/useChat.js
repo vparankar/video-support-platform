@@ -8,11 +8,11 @@ import { useState, useEffect, useCallback } from 'react';
  * @param {number} userId
  * @param {string} displayName
  */
-export default function useChat(socket, sessionId, userId, displayName) {
+export default function useChat(socket, sessionId, userId, displayName, joined) {
   const [messages, setMessages] = useState([]);
 
   useEffect(() => {
-    if (!socket || !sessionId) return;
+    if (!socket || !sessionId || !joined) return;
 
     // Request history
     socket.emit('getMessageHistory', { sessionId });
@@ -25,14 +25,20 @@ export default function useChat(socket, sessionId, userId, displayName) {
       setMessages((prev) => [...prev, msg]);
     };
 
+    const onHistoryError = (err) => {
+      console.warn('[useChat] getMessageHistory error:', err);
+    };
+
     socket.on('messageHistory', onHistory);
     socket.on('newMessage', onNewMessage);
+    socket.on('error', onHistoryError);
 
     return () => {
       socket.off('messageHistory', onHistory);
       socket.off('newMessage', onNewMessage);
+      socket.off('error', onHistoryError);
     };
-  }, [socket, sessionId]);
+  }, [socket, sessionId, joined]);
 
   const sendMessage = useCallback(
     (content) => {

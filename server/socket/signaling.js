@@ -85,10 +85,8 @@ function initSocketHandlers(io, sfuManager) {
 
         socket.join(sessionId);
 
-        // Add to participants table if customer
-        if (role === 'customer') {
-          models.addParticipant(sessionId, displayName, role, userId);
-        }
+        // Add to participants table
+        models.addParticipant(sessionId, displayName, role, userId);
 
         const existingProducers = sfuManager.getRoomProducers(sessionId, socket.id);
 
@@ -219,6 +217,15 @@ function initSocketHandlers(io, sfuManager) {
       }
     });
 
+    socket.on('toggleVideoState', ({ sessionId, isVideoOff }) => {
+      try {
+        checkSocketRoom(socket, sessionId);
+        socket.to(sessionId).emit('peerVideoStateChanged', { socketId: socket.id, isVideoOff });
+      } catch (error) {
+        console.error('toggleVideoState error:', error);
+      }
+    });
+
     socket.on('endSession', ({ sessionId }) => {
       try {
         const peerInfo = checkSocketRoom(socket, sessionId);
@@ -308,6 +315,12 @@ function initSocketHandlers(io, sfuManager) {
           const stat = fs.statSync(expectedPath);
           fileOk = stat.size > 0;
           console.log(`[stopRecording] File at ${expectedPath} — size: ${stat.size} bytes`);
+          if (!fileOk) {
+            try {
+              fs.unlinkSync(expectedPath);
+              console.log(`[stopRecording] Deleted empty/invalid file at ${expectedPath}`);
+            } catch (err) {}
+          }
         }
 
         if (fileOk) {
@@ -336,8 +349,10 @@ function initSocketHandlers(io, sfuManager) {
       if (peerInfo) {
         const { sessionId, displayName, role } = peerInfo;
         
+        // Mark participant as left in database
+        models.removeParticipant(sessionId, displayName);
+
         if (role === 'customer') {
-          models.removeParticipant(sessionId, displayName);
           sfuManager.closePeer(sessionId, socket.id);
           socket.to(sessionId).emit('peerLeft', { socketId: socket.id, displayName });
           peerMap.delete(socket.id);
