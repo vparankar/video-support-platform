@@ -6,6 +6,7 @@ import { endSession } from '../api/api';
 import { getServerUrl } from '../api/api';
 import useMediasoup from '../hooks/useMediasoup';
 import useChat from '../hooks/useChat';
+import { resolveFileUrl } from '../api/api';
 import VideoGrid from '../components/VideoGrid';
 import ChatPanel from '../components/ChatPanel';
 import Controls from '../components/Controls';
@@ -191,7 +192,7 @@ export default function CallRoom() {
   if (error) {
     return (
       <div style={styles.loader}>
-        <p style={{ color: '#ef4444', fontSize: '1.1rem' }}>⚠ {error}</p>
+        <p style={{ color: 'var(--red)', fontSize: '1.1rem' }}>{error}</p>
         <button
           style={styles.backBtn}
           onClick={() => navigate(user?.role === 'agent' ? '/dashboard' : '/login')}
@@ -203,12 +204,17 @@ export default function CallRoom() {
   }
 
   return (
-    <div style={styles.page}>
+    <div className="dark-theme" style={styles.page}>
       {/* ── Agent-disconnected overlay ─────────────── */}
       {agentDisconnected && (
         <div style={styles.overlay}>
           <div style={styles.overlayCard}>
-            <div style={styles.overlayIcon}>⏳</div>
+            <div style={{ margin: '0 auto 12px', display: 'flex', justifyContent: 'center' }}>
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
             <h3 style={styles.overlayTitle}>Agent Disconnected</h3>
             <p style={styles.overlayText}>
               Waiting for the agent to reconnect…
@@ -228,18 +234,18 @@ export default function CallRoom() {
       {isRecording && (
         <div style={styles.recordingBanner}>
           <span style={styles.recordingDot} />
-          <span style={{ color: '#fca5a5', fontWeight: 600, fontSize: '0.82rem' }}>Recording in progress</span>
+          <span style={{ color: 'var(--red)', fontWeight: 600, fontSize: '0.82rem' }}>Recording in progress</span>
         </div>
       )}
       {recordingStatus === 'processing' && (
-        <div style={{ ...styles.recordingBanner, background: 'rgba(245,158,11,0.12)', borderBottom: '1px solid rgba(245,158,11,0.3)' }}>
-          <span style={{ color: '#fbbf24', fontWeight: 600, fontSize: '0.82rem' }}>⏳ Processing recording…</span>
+        <div style={{ ...styles.recordingBanner, background: 'var(--amber-bg)', borderBottom: '1px solid var(--amber-border)' }}>
+          <span style={{ color: 'var(--amber)', fontWeight: 600, fontSize: '0.82rem' }}>Processing recording...</span>
         </div>
       )}
       {recordingUrl && recordingStatus === 'ready' && (
-        <div style={{ ...styles.recordingBanner, background: 'rgba(34,197,94,0.12)', borderBottom: '1px solid rgba(34,197,94,0.3)' }}>
-          <span style={{ color: '#4ade80', fontWeight: 600, fontSize: '0.82rem' }}>✅ Recording ready — </span>
-          <a href={recordingUrl} download style={{ color: '#6ee7b7', textDecoration: 'underline', fontSize: '0.82rem', marginLeft: 4 }}>Download</a>
+        <div style={{ ...styles.recordingBanner, background: 'var(--green-bg)', borderBottom: '1px solid var(--green-border)' }}>
+          <span style={{ color: 'var(--green)', fontWeight: 600, fontSize: '0.82rem' }}>Recording ready — </span>
+          <a href={resolveFileUrl(recordingUrl)} download style={{ color: 'var(--green)', textDecoration: 'underline', fontSize: '0.82rem', marginLeft: 4 }}>Download</a>
         </div>
       )}
 
@@ -290,7 +296,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     height: '100vh',
-    background: '#0f172a',
+    background: 'var(--bg)',
     position: 'relative',
   },
   recordingBanner: {
@@ -299,16 +305,15 @@ const styles = {
     justifyContent: 'center',
     gap: 8,
     padding: '6px 16px',
-    background: 'rgba(239,68,68,0.1)',
-    borderBottom: '1px solid rgba(239,68,68,0.25)',
+    background: 'var(--red-bg)',
+    borderBottom: '1px solid var(--red-border)',
     zIndex: 20,
   },
   recordingDot: {
     width: 8,
     height: 8,
     borderRadius: '50%',
-    background: '#ef4444',
-    boxShadow: '0 0 8px rgba(239,68,68,0.6)',
+    background: 'var(--red)',
     animation: 'recPulse 1.2s ease-in-out infinite',
   },
   body: {
@@ -327,7 +332,7 @@ const styles = {
   },
   loader: {
     minHeight: '100vh',
-    background: '#0f172a',
+    background: 'var(--bg)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -337,20 +342,21 @@ const styles = {
     width: 40,
     height: 40,
     borderRadius: '50%',
-    border: '3px solid #334155',
-    borderTopColor: '#6366f1',
+    border: '3px solid var(--border-strong)',
+    borderTopColor: 'var(--brand-yellow)',
     animation: 'spin 0.8s linear infinite',
   },
   backBtn: {
     marginTop: 18,
     padding: '0.55rem 1.4rem',
-    borderRadius: 8,
-    border: '1px solid #334155',
+    borderRadius: 'var(--radius)',
+    border: '1px solid var(--border-strong)',
     background: 'transparent',
-    color: '#94a3b8',
+    color: 'var(--text-secondary)',
     cursor: 'pointer',
     fontFamily: 'inherit',
     fontSize: '0.85rem',
+    transition: 'background 0.15s',
   },
 
   // ── Overlay ────────────────────────────────────
@@ -365,14 +371,14 @@ const styles = {
     justifyContent: 'center',
   },
   overlayCard: {
-    background: '#1e293b',
-    borderRadius: 18,
+    background: 'var(--surface)',
+    borderRadius: 'var(--radius-lg)',
     padding: '2.5rem 2rem',
     textAlign: 'center',
     maxWidth: 400,
     width: '90%',
-    border: '1px solid #334155',
-    boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
+    border: '1px solid var(--border)',
+    boxShadow: 'var(--shadow-dropdown)',
   },
   overlayIcon: {
     fontSize: '2.5rem',
@@ -381,11 +387,11 @@ const styles = {
   overlayTitle: {
     fontSize: '1.2rem',
     fontWeight: 700,
-    color: '#f1f5f9',
+    color: 'var(--text)',
     marginBottom: 8,
   },
   overlayText: {
-    color: '#94a3b8',
+    color: 'var(--text-muted)',
     fontSize: '0.88rem',
     marginBottom: 20,
   },
@@ -393,27 +399,26 @@ const styles = {
     width: 90,
     height: 90,
     borderRadius: '50%',
-    border: '3px solid #ef4444',
+    border: '3px solid var(--red)',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     margin: '0 auto 18px',
-    boxShadow: '0 0 20px rgba(239,68,68,0.25)',
   },
   countdownNum: {
     fontSize: '1.6rem',
     fontWeight: 700,
-    color: '#ef4444',
+    color: 'var(--red)',
     lineHeight: 1,
   },
   countdownLabel: {
     fontSize: '0.65rem',
-    color: '#94a3b8',
+    color: 'var(--text-muted)',
     marginTop: 2,
   },
   overlayHint: {
-    color: '#64748b',
+    color: 'var(--text-muted)',
     fontSize: '0.78rem',
   },
 };

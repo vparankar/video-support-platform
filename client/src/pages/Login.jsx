@@ -1,138 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-
-const styles = {
-  page: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%)',
-    padding: '1rem',
-  },
-  card: {
-    background: '#1e293b',
-    borderRadius: '16px',
-    padding: '2.5rem',
-    width: '100%',
-    maxWidth: '420px',
-    border: '1px solid rgba(99, 102, 241, 0.15)',
-    boxShadow: '0 25px 50px rgba(0, 0, 0, 0.4), 0 0 80px rgba(99, 102, 241, 0.08)',
-  },
-  logoRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    marginBottom: '0.25rem',
-    justifyContent: 'center',
-  },
-  logoDot: {
-    width: '10px',
-    height: '10px',
-    borderRadius: '50%',
-    background: '#6366f1',
-    boxShadow: '0 0 12px rgba(99, 102, 241, 0.6)',
-  },
-  logoText: {
-    fontSize: '0.8rem',
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '3px',
-    color: '#94a3b8',
-  },
-  heading: {
-    fontSize: '1.75rem',
-    fontWeight: 700,
-    textAlign: 'center',
-    marginBottom: '0.25rem',
-    color: '#f1f5f9',
-  },
-  subtitle: {
-    fontSize: '0.875rem',
-    color: '#64748b',
-    textAlign: 'center',
-    marginBottom: '2rem',
-  },
-  label: {
-    display: 'block',
-    fontSize: '0.8rem',
-    fontWeight: 500,
-    color: '#94a3b8',
-    marginBottom: '0.4rem',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-  },
-  input: {
-    width: '100%',
-    padding: '0.75rem 1rem',
-    borderRadius: '10px',
-    border: '1px solid #334155',
-    background: '#0f172a',
-    color: '#f1f5f9',
-    fontSize: '0.95rem',
-    outline: 'none',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
-    fontFamily: 'inherit',
-  },
-  inputFocused: {
-    border: '1px solid #6366f1',
-    boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.15)',
-  },
-  fieldGroup: {
-    marginBottom: '1.25rem',
-  },
-  button: {
-    width: '100%',
-    padding: '0.8rem',
-    borderRadius: '10px',
-    border: 'none',
-    background: 'linear-gradient(135deg, #6366f1, #818cf8)',
-    color: '#fff',
-    fontSize: '0.95rem',
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'transform 0.15s, box-shadow 0.2s',
-    fontFamily: 'inherit',
-    marginTop: '0.5rem',
-  },
-  buttonHover: {
-    transform: 'translateY(-1px)',
-    boxShadow: '0 8px 24px rgba(99, 102, 241, 0.35)',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-    cursor: 'not-allowed',
-    transform: 'none',
-  },
-  error: {
-    background: 'rgba(239, 68, 68, 0.1)',
-    border: '1px solid rgba(239, 68, 68, 0.3)',
-    borderRadius: '8px',
-    padding: '0.65rem 1rem',
-    marginBottom: '1rem',
-    fontSize: '0.85rem',
-    color: '#fca5a5',
-    textAlign: 'center',
-  },
-  hint: {
-    textAlign: 'center',
-    marginTop: '1.5rem',
-    fontSize: '0.8rem',
-    color: '#64748b',
-    lineHeight: 1.5,
-  },
-  hintAccent: {
-    color: '#818cf8',
-  },
-};
+import atombergLogo from '../assets/atomberg.png';
+import atombergFullLogo from '../assets/atombergFull.png';
 
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [focusedField, setFocusedField] = useState('');
 
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -152,78 +28,124 @@ export default function Login() {
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <div style={styles.logoRow}>
-          <div style={styles.logoDot} />
-          <span style={styles.logoText}>Video Support</span>
+    <div className="login-container">
+      {/* Left Decorative Panel */}
+      <div className="login-left">
+        <div style={{ marginBottom: 48 }}>
+          <div style={{ marginBottom: 24 }}>
+            <img
+              src={atombergLogo}
+              alt="Atomberg Logo"
+              style={{ height: 36, borderRadius: 6, display: 'block' }}
+            />
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#fff', letterSpacing: -0.3, marginBottom: 6 }}>
+            Video Support
+          </div>
+          <div style={{ fontSize: 12, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+            by Atomberg
+          </div>
         </div>
-        <h1 style={styles.heading}>Welcome back</h1>
-        <p style={styles.subtitle}>Sign in to your agent account</p>
 
-        {error && <div style={styles.error}>{error}</div>}
+        <div style={{ marginBottom: 40 }}>
+          <p style={{ fontSize: 26, fontWeight: 700, color: '#F9FAFB', lineHeight: 1.3, letterSpacing: -0.5, marginBottom: 12 }}>
+            Instant Video<br />Support Platform
+          </p>
+          <p style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6 }}>
+            Connect with customers in real-time via high-quality video sessions to debug, guide, and resolve issues instantly.
+          </p>
+        </div>
 
-        <form onSubmit={handleSubmit}>
-          <div style={styles.fieldGroup}>
-            <label style={styles.label} htmlFor="login-username">Username</label>
-            <input
-              id="login-username"
-              type="text"
-              placeholder="Enter username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              onFocus={() => setFocusedField('username')}
-              onBlur={() => setFocusedField('')}
+        <div className="demo-accounts-list" style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+          {[
+            { role: 'Agent', username: 'agent1', pw: 'agent123' },
+            { role: 'Admin', username: 'admin', pw: 'admin123' },
+          ].map(acc => (
+            <button
+              key={acc.role}
+              onClick={() => { setUsername(acc.username); setPassword(acc.pw); }}
+              type="button"
               style={{
-                ...styles.input,
-                ...(focusedField === 'username' ? styles.inputFocused : {}),
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 4,
+                padding: '8px 12px',
+                color: '#9CA3AF',
+                fontSize: 12,
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontFamily: 'inherit',
+                transition: 'all 0.15s',
               }}
-              autoComplete="username"
-              required
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(253,185,19,0.08)';
+                e.currentTarget.style.borderColor = 'rgba(253,185,19,0.2)';
+                e.currentTarget.style.color = '#E5E7EB';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.color = '#9CA3AF';
+              }}
+            >
+              <span style={{ color: 'var(--brand-yellow)', fontWeight: 600 }}>{acc.role}</span>
+              {'  '}·{'  '}{acc.username}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Right Form Panel */}
+      <div className="login-right">
+        <div className="login-card">
+          <div className="login-logo" style={{ marginLeft: -45 }}>
+            <img
+              src={atombergFullLogo}
+              alt="Atomberg"
+              style={{ height: 64, width: 'auto', display: 'block' }}
             />
           </div>
+          <h1 className="login-title">Welcome back</h1>
+          <p className="login-subtitle">Sign in to your agent account</p>
 
-          <div style={styles.fieldGroup}>
-            <label style={styles.label} htmlFor="login-password">Password</label>
-            <input
-              id="login-password"
-              type="password"
-              placeholder="Enter password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onFocus={() => setFocusedField('password')}
-              onBlur={() => setFocusedField('')}
-              style={{
-                ...styles.input,
-                ...(focusedField === 'password' ? styles.inputFocused : {}),
-              }}
-              autoComplete="current-password"
-              required
-            />
-          </div>
+          <form className="login-form" onSubmit={handleSubmit}>
+            {error && <div className="error-message">{error}</div>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              ...styles.button,
-              ...(loading ? styles.buttonDisabled : {}),
-            }}
-            onMouseEnter={(e) => {
-              if (!loading) Object.assign(e.target.style, styles.buttonHover);
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = '';
-              e.target.style.boxShadow = '';
-            }}
-          >
-            {loading ? 'Signing in…' : 'Sign In'}
-          </button>
-        </form>
+            <div className="form-group">
+              <label htmlFor="username">Username</label>
+              <input
+                id="username"
+                type="text"
+                required
+                placeholder="Enter username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+              />
+            </div>
 
-        <p style={styles.hint}>
-          Customer? <span style={styles.hintAccent}>Use your invite link directly.</span>
-        </p>
+            <div className="form-group">
+              <label htmlFor="password">Password</label>
+              <input
+                id="password"
+                type="password"
+                required
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+
+            <button type="submit" disabled={loading} className="submit-btn">
+              {loading ? 'Signing in…' : 'Sign in'}
+            </button>
+          </form>
+
+          <p style={{ marginTop: 24, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+            Customer? <span style={{ color: 'var(--brand-yellow)' }}>Use your invite link directly.</span>
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -18,7 +18,22 @@ api.interceptors.request.use((config) => {
 export default api;
 
 // Export the server base URL for socket.io connections
-export const getServerUrl = () => import.meta.env.VITE_API_URL || '/';
+export const getServerUrl = () => import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:3001' : '');
+
+export const resolveFileUrl = (fileUrl) => {
+  if (!fileUrl) return '#';
+  // Prevent protocol bypass and stored XSS (e.g. javascript: or data: schemes)
+  const lowerUrl = fileUrl.toLowerCase().trim();
+  if (lowerUrl.startsWith('javascript:') || lowerUrl.startsWith('data:')) {
+    return '#';
+  }
+  if (fileUrl.startsWith('http')) return fileUrl;
+  const serverUrl = getServerUrl();
+  if (serverUrl && serverUrl !== '/') {
+    return `${serverUrl}${fileUrl}`;
+  }
+  return fileUrl;
+};
 
 // ── Auth ────────────────────────────────────────
 export const login = (username, password) =>

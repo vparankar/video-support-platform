@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getJoinInfo, register } from '../api/api';
+import atombergLogo from '../assets/atomberg.png';
 
 /**
  * JoinPage — public page for customers to join a session via invite token.
@@ -52,8 +53,7 @@ export default function JoinPage() {
       localStorage.setItem('token', authToken);
       localStorage.setItem('user', JSON.stringify(user));
 
-      // Navigate to the call room
-      // Full reload so AuthProvider re-mounts with the new credentials
+      // Navigate to the call room via page redirect to reset AuthContext
       window.location.href = `/room/${session.id}`;
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to join session');
@@ -61,47 +61,57 @@ export default function JoinPage() {
     }
   };
 
-  // ── Render ────────────────────────────────────────
-
   if (loading) {
     return (
-      <div style={styles.page}>
-        <div style={styles.card}>
-          <div style={styles.spinner} />
-          <p style={{ color: '#94a3b8', marginTop: 14 }}>Loading session…</p>
-        </div>
+      <div className="loading-screen">
+        <div style={{
+          width: 36,
+          height: 36,
+          borderRadius: '50%',
+          border: '3px solid var(--border-strong)',
+          borderTopColor: 'var(--brand-yellow)',
+          animation: 'spin 0.8s linear infinite',
+        }} />
+        <p style={{ color: 'var(--text-muted)', marginTop: 14 }}>Loading session…</p>
       </div>
     );
   }
 
   if (!session) {
     return (
-      <div style={styles.page}>
-        <div style={styles.card}>
-          <div style={styles.errorIcon}>⚠</div>
-          <h2 style={styles.title}>Cannot Join</h2>
-          <p style={styles.subtext}>{error || 'Session unavailable.'}</p>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: '1rem' }}>
+        <div className="card" style={{ maxWidth: 420, width: '100%', padding: '2.5rem 2rem', textAlign: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </div>
+          <h2 style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Cannot Join</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{error || 'Session unavailable.'}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', padding: '1rem' }}>
+      <div className="card" style={{ maxWidth: 420, width: '100%', padding: '2.5rem 2rem', textAlign: 'center' }}>
         {/* Branding */}
-        <div style={styles.brand}>
-          <span style={styles.dot} />
-          <span style={styles.brandText}>Video Support</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
+          <img src={atombergLogo} alt="Atomberg Logo" style={{ height: 28, borderRadius: 6 }} />
+          <span style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text)' }}>Video Support</span>
         </div>
 
-        <h2 style={styles.title}>{session.title}</h2>
-        <p style={styles.subtext}>Enter your name to join as a customer</p>
+        <h2 style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{session.title}</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: 22 }}>Enter your name to join as a customer</p>
 
-        {error && <p style={styles.error}>{error}</p>}
+        {error && <p className="error-message" style={{ marginBottom: 12 }}>{error}</p>}
 
         <input
-          style={styles.input}
+          className="form-input"
+          style={{ marginBottom: 14 }}
           type="text"
           placeholder="Your display name…"
           value={displayName}
@@ -111,7 +121,8 @@ export default function JoinPage() {
         />
 
         <button
-          style={{ ...styles.joinBtn, opacity: joining ? 0.6 : 1 }}
+          className="btn btn-primary"
+          style={{ width: '100%', padding: '0.75rem', fontSize: '0.9rem' }}
           onClick={handleJoin}
           disabled={joining}
         >
@@ -121,101 +132,3 @@ export default function JoinPage() {
     </div>
   );
 }
-
-// ── Inline styles ──────────────────────────────────
-const styles = {
-  page: {
-    minHeight: '100vh',
-    background: '#0f172a',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '1rem',
-  },
-  card: {
-    background: '#1e293b',
-    borderRadius: 16,
-    padding: '2.5rem 2rem',
-    width: '100%',
-    maxWidth: 420,
-    textAlign: 'center',
-    border: '1px solid #334155',
-    boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
-  },
-  brand: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 20,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: '50%',
-    background: '#6366f1',
-    boxShadow: '0 0 10px rgba(99,102,241,0.5)',
-  },
-  brandText: {
-    fontSize: '0.95rem',
-    fontWeight: 600,
-    color: '#f1f5f9',
-  },
-  title: {
-    fontSize: '1.3rem',
-    fontWeight: 700,
-    color: '#f1f5f9',
-    marginBottom: 6,
-  },
-  subtext: {
-    color: '#94a3b8',
-    fontSize: '0.85rem',
-    marginBottom: 22,
-  },
-  error: {
-    color: '#ef4444',
-    fontSize: '0.82rem',
-    marginBottom: 12,
-    background: 'rgba(239,68,68,0.08)',
-    borderRadius: 8,
-    padding: '0.5rem 0.75rem',
-    border: '1px solid rgba(239,68,68,0.15)',
-  },
-  errorIcon: {
-    fontSize: '2.5rem',
-    marginBottom: 12,
-  },
-  input: {
-    width: '100%',
-    padding: '0.75rem 1rem',
-    borderRadius: 10,
-    border: '1px solid #334155',
-    background: '#0f172a',
-    color: '#f1f5f9',
-    fontSize: '0.9rem',
-    outline: 'none',
-    fontFamily: 'inherit',
-    marginBottom: 14,
-  },
-  joinBtn: {
-    width: '100%',
-    padding: '0.75rem',
-    borderRadius: 10,
-    border: 'none',
-    background: 'linear-gradient(135deg, #6366f1, #818cf8)',
-    color: '#fff',
-    fontWeight: 600,
-    fontSize: '0.9rem',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-  },
-  spinner: {
-    width: 36,
-    height: 36,
-    borderRadius: '50%',
-    border: '3px solid #334155',
-    borderTopColor: '#6366f1',
-    animation: 'spin 0.8s linear infinite',
-    margin: '0 auto',
-  },
-};

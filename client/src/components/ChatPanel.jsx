@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { uploadFile } from '../api/api';
-import { getServerUrl } from '../api/api';
+import { uploadFile, resolveFileUrl } from '../api/api';
 
 /**
  * ChatPanel — scrollable message list + input bar with file sharing.
@@ -51,32 +50,36 @@ export default function ChatPanel({ messages, sendMessage, sendFileMessage, sess
    * Determine an icon for the file based on extension.
    */
   const getFileIcon = (fileName) => {
-    if (!fileName) return '📎';
+    const defaultIcon = (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+        <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+      </svg>
+    );
+    if (!fileName) return defaultIcon;
     const ext = fileName.split('.').pop().toLowerCase();
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return '🖼️';
-    if (ext === 'pdf') return '📄';
-    if (['doc', 'docx'].includes(ext)) return '📝';
-    if (['xls', 'xlsx'].includes(ext)) return '📊';
-    if (ext === 'txt') return '📃';
-    return '📎';
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
+      return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+          <circle cx="8.5" cy="8.5" r="1.5" />
+          <polyline points="21 15 16 10 5 21" />
+        </svg>
+      );
+    }
+    if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'].includes(ext)) {
+      return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+      );
+    }
+    return defaultIcon;
   };
 
-  /**
-   * Build a full URL for file downloads. The fileUrl from the server is
-   * a root-relative path like `/uploads/filename`. In dev the Vite proxy
-   * rewrites `/api` but not `/uploads`, so we need the server origin.
-   */
-  const resolveFileUrl = (fileUrl) => {
-    if (!fileUrl) return '#';
-    // Already absolute
-    if (fileUrl.startsWith('http')) return fileUrl;
-    // In production with a separate API server, prefix with the server URL
-    const serverUrl = getServerUrl();
-    if (serverUrl && serverUrl !== '/') {
-      return `${serverUrl}${fileUrl}`;
-    }
-    return fileUrl;
-  };
+
 
   return (
     <div style={styles.wrapper}>
@@ -110,7 +113,13 @@ export default function ChatPanel({ messages, sendMessage, sendFileMessage, sess
                   <span style={styles.fileBubble}>
                     <span style={styles.fileIcon}>{getFileIcon(fileName)}</span>
                     <span style={styles.fileName}>{fileName}</span>
-                    <span style={styles.downloadIcon}>⬇</span>
+                    <span style={styles.downloadIcon}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                    </span>
                   </span>
                 </a>
               ) : (
@@ -145,8 +154,12 @@ export default function ChatPanel({ messages, sendMessage, sendFileMessage, sess
           onClick={() => fileInputRef.current?.click()}
           title="Attach file"
           disabled={uploading}
+          onMouseEnter={e => e.target.style.background = 'var(--surface-raised)'}
+          onMouseLeave={e => e.target.style.background = 'var(--bg)'}
         >
-          📎
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+          </svg>
         </button>
         <input
           style={styles.input}
@@ -156,8 +169,17 @@ export default function ChatPanel({ messages, sendMessage, sendFileMessage, sess
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
         />
-        <button style={styles.sendBtn} onClick={handleSend} title="Send">
-          ➤
+        <button
+          style={styles.sendBtn}
+          onClick={handleSend}
+          title="Send"
+          onMouseEnter={e => e.target.style.background = 'var(--brand-yellow-dark)'}
+          onMouseLeave={e => e.target.style.background = 'var(--brand-yellow)'}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#111827' }}>
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </svg>
         </button>
       </div>
     </div>
@@ -170,8 +192,8 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     height: '100%',
-    background: '#1e293b',
-    borderLeft: '1px solid #334155',
+    background: 'var(--surface)',
+    borderLeft: '1px solid var(--border)',
   },
   header: {
     display: 'flex',
@@ -180,14 +202,14 @@ const styles = {
     padding: '14px 16px',
     fontSize: '0.9rem',
     fontWeight: 600,
-    color: '#f1f5f9',
-    borderBottom: '1px solid #334155',
+    color: 'var(--text)',
+    borderBottom: '1px solid var(--border)',
   },
   headerDot: {
     width: 8,
     height: 8,
     borderRadius: '50%',
-    background: '#22c55e',
+    background: 'var(--green)',
   },
   messages: {
     flex: 1,
@@ -198,7 +220,7 @@ const styles = {
     gap: 8,
   },
   empty: {
-    color: '#475569',
+    color: 'var(--text-muted)',
     textAlign: 'center',
     marginTop: '2rem',
     fontSize: '0.82rem',
@@ -209,11 +231,11 @@ const styles = {
   },
   name: {
     fontWeight: 600,
-    color: '#818cf8',
+    color: 'var(--brand-yellow)',
     marginRight: 6,
   },
   content: {
-    color: '#cbd5e1',
+    color: 'var(--text)',
   },
   // ── File message bubble ──────────────────────────
   fileLink: {
@@ -223,9 +245,9 @@ const styles = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 8,
-    background: '#334155',
-    border: '1px solid #475569',
-    borderRadius: 10,
+    background: 'var(--bg)',
+    border: '1px solid var(--border-strong)',
+    borderRadius: 'var(--radius)',
     padding: '6px 12px',
     marginTop: 2,
     transition: 'background 0.15s',
@@ -236,7 +258,7 @@ const styles = {
     flexShrink: 0,
   },
   fileName: {
-    color: '#e2e8f0',
+    color: 'var(--text)',
     fontSize: '0.82rem',
     maxWidth: 160,
     overflow: 'hidden',
@@ -244,7 +266,7 @@ const styles = {
     whiteSpace: 'nowrap',
   },
   downloadIcon: {
-    color: '#6366f1',
+    color: 'var(--brand-yellow)',
     fontSize: '0.75rem',
     flexShrink: 0,
   },
@@ -254,15 +276,15 @@ const styles = {
     alignItems: 'center',
     gap: 8,
     padding: '6px 16px',
-    borderTop: '1px solid #334155',
-    background: 'rgba(99,102,241,0.08)',
+    borderTop: '1px solid var(--border)',
+    background: 'var(--blue-bg)',
   },
   uploadSpinner: {
     width: 14,
     height: 14,
     borderRadius: '50%',
-    border: '2px solid #475569',
-    borderTopColor: '#6366f1',
+    border: '2px solid var(--border-strong)',
+    borderTopColor: 'var(--blue)',
     animation: 'spin 0.6s linear infinite',
   },
   // ── Input row ────────────────────────────────────
@@ -270,14 +292,14 @@ const styles = {
     display: 'flex',
     gap: 8,
     padding: '10px 12px',
-    borderTop: '1px solid #334155',
-    background: '#1e293b',
+    borderTop: '1px solid var(--border)',
+    background: 'var(--surface)',
   },
   attachBtn: {
     padding: '8px 10px',
-    borderRadius: 8,
-    border: '1px solid #334155',
-    background: '#0f172a',
+    borderRadius: 'var(--radius)',
+    border: '1px solid var(--border-strong)',
+    background: 'var(--bg)',
     fontSize: '1rem',
     cursor: 'pointer',
     display: 'flex',
@@ -288,22 +310,23 @@ const styles = {
   input: {
     flex: 1,
     padding: '8px 12px',
-    borderRadius: 8,
-    border: '1px solid #334155',
-    background: '#0f172a',
-    color: '#f1f5f9',
+    borderRadius: 'var(--radius)',
+    border: '1px solid var(--border-strong)',
+    background: 'var(--bg)',
+    color: 'var(--text)',
     fontSize: '0.84rem',
     outline: 'none',
     fontFamily: 'inherit',
   },
   sendBtn: {
     padding: '8px 14px',
-    borderRadius: 8,
+    borderRadius: 'var(--radius)',
     border: 'none',
-    background: '#6366f1',
-    color: '#fff',
+    background: 'var(--brand-yellow)',
+    color: '#111827',
     fontSize: '1rem',
     cursor: 'pointer',
     fontFamily: 'inherit',
+    transition: 'background 0.15s',
   },
 };
