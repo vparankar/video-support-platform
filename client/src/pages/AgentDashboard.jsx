@@ -298,26 +298,20 @@ export default function AgentDashboard() {
                           <td>{duration(sess.created_at)}</td>
                           <td>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                              {sess.status === 'active' && (
-                                <button className="btn btn-primary btn-sm" onClick={() => navigate(`/room/${sess.id}`)}>
-                                  Join Call
-                                </button>
-                              )}
-                              {sess.status === 'waiting' && !copiedSessions[sess.id] && (
-                                <button
-                                  className="btn btn-secondary btn-sm"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(`${window.location.origin}/join/${sess.invite_token}`);
-                                    setCopiedSessions(prev => ({ ...prev, [sess.id]: true }));
-                                    setTimeout(() => setCopiedSessions(prev => ({ ...prev, [sess.id]: false })), 2000);
-                                  }}
-                                >
-                                  Copy Link
-                                </button>
-                              )}
-                              {copiedSessions[sess.id] && (
-                                <span className="badge badge-green" style={{ fontSize: 11 }}>Copied!</span>
-                              )}
+                              <button className="btn btn-primary btn-sm" onClick={() => navigate(`/room/${sess.id}`)}>
+                                Join Call
+                              </button>
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                onClick={() => {
+                                  const link = `${window.location.origin}/join/${sess.invite_token}`;
+                                  navigator.clipboard.writeText(link);
+                                  setCopiedSessions(prev => ({ ...prev, [sess.id]: true }));
+                                  setTimeout(() => setCopiedSessions(prev => ({ ...prev, [sess.id]: false })), 2000);
+                                }}
+                              >
+                                {copiedSessions[sess.id] ? 'Copied!' : 'Copy Link'}
+                              </button>
                             </div>
                           </td>
                         </tr>

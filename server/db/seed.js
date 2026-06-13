@@ -139,21 +139,24 @@ insertMessage(s3Id, cust3Id, 'Amit Verma', 'All 8 done. Thanks for the help!', '
 
 console.log('[seed] Session 3 (ended, multi-customer) seeded.');
 
-// ── Session 4: ACTIVE — Ongoing motor noise complaint ──
+// ── Session 4: ENDED — Motor noise complaint resolved (20 min ago) ──
 const s4Id    = uuidv4();
 const s4Token = uuidv4();
-const s4Start = now - mins(8);
+const s4Start = now - mins(38);
+const s4End   = now - mins(20);
 
-insertSession(s4Id, 'Motor Humming Noise — Studio 6T', s4Token, agentId, 'active', s4Start - mins(2), s4Start, null);
+insertSession(s4Id, 'Motor Humming Noise — Studio 6T', s4Token, agentId, 'ended', s4Start - mins(2), s4Start, s4End);
 
-insertParticipant(s4Id, agentId,  'agent@atomberg.com', 'agent',    s4Start, null);
-insertParticipant(s4Id, cust1Id,  'Rahul Sharma',       'customer', s4Start + mins(1), null);
+insertParticipant(s4Id, agentId,  'agent@atomberg.com', 'agent',    s4Start, s4End);
+insertParticipant(s4Id, cust1Id,  'Rahul Sharma',       'customer', s4Start + mins(1), s4End);
 
 insertMessage(s4Id, agentId, 'agent@atomberg.com', 'Hi Rahul, you mentioned a humming noise from the Studio 6T?', 'text', null, null, s4Start + mins(1));
 insertMessage(s4Id, cust1Id, 'Rahul Sharma', 'Yes, it started yesterday. Speed 3 and above. Let me show you on camera.', 'text', null, null, s4Start + mins(2));
 insertMessage(s4Id, agentId, 'agent@atomberg.com', 'I can hear it. Sounds like a loose blade arm. Can you turn it off and check if any blade arm is rattling?', 'text', null, null, s4Start + mins(4));
+insertMessage(s4Id, cust1Id, 'Rahul Sharma', 'Found it — blade arm 3 was loose. Tightened it and the noise is gone!', 'text', null, null, s4Start + mins(10));
+insertMessage(s4Id, agentId, 'agent@atomberg.com', 'Perfect, glad that resolved it. Let me know if it comes back.', 'text', null, null, s4Start + mins(12));
 
-console.log('[seed] Session 4 (active) seeded.');
+console.log('[seed] Session 4 (ended) seeded.');
 
 // ── Session 5: WAITING — Scheduled for later ──
 const s5Id    = uuidv4();
