@@ -1,8 +1,44 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
 const models = require('../db/models');
 const { verifyToken, verifyRole } = require('../middleware/authMiddleware');
 
 const router = express.Router();
+
+// ── Multer config for file uploads ──────────────────
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, path.join(__dirname, '..', 'uploads'));
+  },
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname);
+    cb(null, `${uniqueSuffix}${ext}`);
+  },
+});
+
+const ALLOWED_MIMES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'text/plain',
+];
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIMES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('File type not allowed'), false);
+    }
+  },
+});
 
 // Get agent sessions or all sessions for admin
 router.get('/', verifyToken, (req, res) => {
@@ -83,6 +119,39 @@ router.get('/:id', verifyToken, (req, res) => {
   }
 });
 
+// Upload file to session
+router.post('/:id/upload', verifyToken, (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ error: 'File too large. Max 10 MB.' });
+      }
+      return res.status(400).json({ error: err.message });
+    }
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file provided' });
+    }
+
+    try {
+      const session = models.getSessionById(req.params.id);
+      if (!session) {
+        return res.status(404).json({ error: 'Session not found' });
+      }
+
+      const fileUrl = `/uploads/${req.file.filename}`;
+      const fileName = req.file.originalname;
+
+      res.json({ fileUrl, fileName });
+    } catch (error) {
+      console.error('Upload error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+});
+
 // End session
 router.put('/:id/end', verifyToken, verifyRole('agent', 'admin'), (req, res) => {
   try {
@@ -104,3 +173,4 @@ router.put('/:id/end', verifyToken, verifyRole('agent', 'admin'), (req, res) => 
 });
 
 module.exports = router;
+

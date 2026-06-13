@@ -40,3 +40,12 @@ export const getJoinInfo = (token) =>
 
 export const getAllActiveSessions = () =>
   api.get('/sessions/admin/all');
+
+// ── File Upload ─────────────────────────────────
+export const uploadFile = (sessionId, file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  return api.post(`/sessions/${sessionId}/upload`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+};

@@ -1,7 +1,7 @@
 const models = require('../db/models');
 
 function initChatHandlers(io, socket, peerMap) {
-  socket.on('sendMessage', async ({ sessionId, content }) => {
+  socket.on('sendMessage', async ({ sessionId, content, type = 'text', fileUrl = null, fileName = null }) => {
     try {
       const peerInfo = peerMap.get(socket.id);
       if (!peerInfo) {
@@ -9,7 +9,7 @@ function initChatHandlers(io, socket, peerMap) {
       }
 
       const { userId, displayName } = peerInfo;
-      const message = await models.saveMessage(sessionId, userId, displayName, content, 'text');
+      const message = await models.saveMessage(sessionId, userId, displayName, content, type, fileUrl, fileName);
 
       io.to(sessionId).emit('newMessage', {
         id: message.id,
@@ -17,6 +17,8 @@ function initChatHandlers(io, socket, peerMap) {
         displayName: message.display_name,
         content: message.content,
         type: message.message_type,
+        fileUrl: message.file_url,
+        fileName: message.file_name,
         created_at: message.created_at
       });
     } catch (error) {

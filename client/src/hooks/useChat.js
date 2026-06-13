@@ -42,5 +42,20 @@ export default function useChat(socket, sessionId, userId, displayName) {
     [socket, sessionId]
   );
 
-  return { messages, sendMessage };
+  const sendFileMessage = useCallback(
+    ({ fileName, fileUrl }) => {
+      if (!socket) return;
+      socket.emit('sendMessage', {
+        sessionId,
+        content: fileName,
+        type: 'file',
+        fileUrl,
+        fileName,
+      });
+    },
+    [socket, sessionId]
+  );
+
+  return { messages, sendMessage, sendFileMessage };
 }
+
