@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { initChatHandlers } = require('./chat');
 const models = require('../db/models');
-const recorder = require('../mediasoup/recorder');
 
 function initSocketHandlers(io, sfuManager) {
   // Map to track connected peers
@@ -248,109 +247,21 @@ function initSocketHandlers(io, sfuManager) {
       }
     });
 
-    // ── Recording (agent only) ──────────────────────
-    socket.on('startRecording', async ({ sessionId }, callback) => {
-      try {
-        const peerInfo = checkSocketRoom(socket, sessionId);
-        if (peerInfo.role === 'customer') {
-          throw new Error('Only agents can start recording');
-        }
-
-        const room = await sfuManager.getOrCreateRoom(sessionId);
-        const router = room.router;
-
-        // Collect all producers in the room
-        const allProducers = [];
-        for (const [, peer] of room.peers.entries()) {
-          for (const [, producer] of peer.producers.entries()) {
-            allProducers.push({ producer, kind: producer.kind });
-          }
-        }
-
-        if (allProducers.length === 0) {
-          throw new Error('No active producers to record');
-        }
-
-        const result = await recorder.startRecording(router, sessionId, allProducers);
-
-        // Notify all participants
-        io.to(sessionId).emit('recordingStatus', { status: 'recording' });
-
-        if (typeof callback === 'function') {
-          callback(result);
-        }
-      } catch (error) {
-        console.error('startRecording error:', error);
-        if (typeof callback === 'function') {
-          callback({ error: error.message });
-        }
-      }
-    });
-
-    socket.on('stopRecording', async ({ sessionId }, callback) => {
-      try {
-        const peerInfo = checkSocketRoom(socket, sessionId);
-        if (peerInfo.role === 'customer') {
-          throw new Error('Only agents can stop recording');
-        }
-
-        // Notify participants recording is processing
-        io.to(sessionId).emit('recordingStatus', { status: 'processing' });
-
-        // Await FFmpeg exit so the file is fully written before we serve it
-        const result = await recorder.stopRecording(sessionId);
-
-        if (typeof callback === 'function') {
-          callback({ filePath: result?.filePath || null });
-        }
-
-        const fs = require('fs');
-        const expectedPath = require('path').join(
-          __dirname, '..', 'uploads', 'recordings', `${sessionId}.mp4`
-        );
-
-        // Check file exists AND has actual content (> 0 bytes)
-        let fileOk = false;
-        if (result?.filePath && fs.existsSync(expectedPath)) {
-          const stat = fs.statSync(expectedPath);
-          fileOk = stat.size > 0;
-          console.log(`[stopRecording] File at ${expectedPath} — size: ${stat.size} bytes`);
-          if (!fileOk) {
-            try {
-              fs.unlinkSync(expectedPath);
-              console.log(`[stopRecording] Deleted empty/invalid file at ${expectedPath}`);
-            } catch (err) {}
-          }
-        }
-
-        if (fileOk) {
-          const downloadUrl = `/uploads/recordings/${sessionId}.mp4`;
-          io.to(sessionId).emit('recordingReady', { downloadUrl });
-          io.to(sessionId).emit('recordingStatus', { status: 'ready' });
-          console.log(`[stopRecording] File ready at ${expectedPath}`);
-        } else {
-          console.error(`[stopRecording] File NOT found or empty at ${expectedPath}`);
-          io.to(sessionId).emit('recordingStatus', { status: 'error' });
-          io.to(sessionId).emit('recordingError', {
-            message: 'Recording file was not created. Ensure a call is active with media streams before recording.',
-          });
-        }
-      } catch (error) {
-        console.error('stopRecording error:', error);
-        io.to(sessionId).emit('recordingStatus', { status: 'error' });
-        if (typeof callback === 'function') {
-          callback({ error: error.message });
-        }
+    // ── Customer leaving (explicit, before disconnect) ──
+    socket.on('customerLeaving', ({ sessionId }) => {
+      const peerInfo = peerMap.get(socket.id);
+      if (peerInfo && peerInfo.sessionId === sessionId) {
+        models.removeParticipant(sessionId, peerInfo.displayName, peerInfo.userId);
       }
     });
 
     socket.on('disconnect', () => {
       const peerInfo = peerMap.get(socket.id);
       if (peerInfo) {
-        const { sessionId, displayName, role } = peerInfo;
+        const { sessionId, displayName, role, userId } = peerInfo;
         
         // Mark participant as left in database
-        models.removeParticipant(sessionId, displayName);
+        models.removeParticipant(sessionId, displayName, userId);
 
         if (role === 'customer') {
           sfuManager.closePeer(sessionId, socket.id);

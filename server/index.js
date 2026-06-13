@@ -124,19 +124,9 @@ try {
   console.warn('Socket signaling handlers could not be loaded. Assuming they will be created later.', err.message);
 }
 
-// ── Graceful shutdown handling for media recording processes ──
-const recorder = require('./mediasoup/recorder');
-function gracefulShutdown(signal) {
-  console.log(`Received ${signal}. Shutting down gracefully...`);
-  try {
-    recorder.cleanup();
-  } catch (err) {
-    console.error('Error during recorder cleanup:', err);
-  }
-  process.exit(0);
-}
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+// ── Graceful shutdown ──
+process.on('SIGINT', () => { console.log('Received SIGINT. Shutting down...'); process.exit(0); });
+process.on('SIGTERM', () => { console.log('Received SIGTERM. Shutting down...'); process.exit(0); });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {

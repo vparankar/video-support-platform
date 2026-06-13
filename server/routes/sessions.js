@@ -101,6 +101,43 @@ router.get('/admin/all', verifyToken, verifyRole('admin'), (req, res) => {
   }
 });
 
+// Admin: full session history with details
+router.get('/admin/history', verifyToken, verifyRole('admin'), (req, res) => {
+  try {
+    const sessions = models.getAllSessionsDetailed();
+    res.json(sessions);
+  } catch (err) {
+    console.error('Get admin session history error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Admin: event log for a specific session
+router.get('/admin/sessions/:id/events', verifyToken, verifyRole('admin'), (req, res) => {
+  try {
+    const session = models.getSessionById(req.params.id);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+    const eventLog = models.getSessionEventLog(req.params.id);
+    res.json({ session, ...eventLog });
+  } catch (err) {
+    console.error('Get session event log error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Admin: extended system stats
+router.get('/admin/stats', verifyToken, verifyRole('admin'), (req, res) => {
+  try {
+    const stats = models.getSystemStats();
+    res.json(stats);
+  } catch (err) {
+    console.error('Get system stats error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Public invite route
 router.get('/join/:token', (req, res) => {
   try {
