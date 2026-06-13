@@ -169,7 +169,8 @@ function initSocketHandlers(io, sfuManager) {
       try {
         const peerInfo = peerMap.get(socket.id);
         if (peerInfo && peerInfo.sessionId === sessionId) {
-          models.updateSessionStatus(sessionId, 'ended');
+          // Note: DB status is already updated by the REST PUT /:id/end route.
+          // This handler only broadcasts the event and cleans up pending disconnects.
           io.to(sessionId).emit('sessionEnded');
 
           if (pendingAgentDisconnects.has(sessionId)) {

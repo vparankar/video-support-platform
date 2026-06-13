@@ -1,9 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getAllActiveSessions, endSession } from '../api/api';
 
 function duration(created) {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(created)) / 60000));
+  if (!created) return '—';
+  // SQLite stores timestamps as Unix epoch seconds
+  const mins = Math.max(0, Math.round((Date.now() - created * 1000) / 60000));
   if (mins < 60) return `${mins}m`;
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
@@ -18,6 +21,7 @@ const badge = (status) => ({
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -52,7 +56,7 @@ export default function AdminDashboard() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <span style={{ fontSize: '0.82rem', color: '#94a3b8' }}>{user?.username}</span>
-          <button style={{ padding: '0.45rem 1rem', borderRadius: 8, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'inherit' }} onClick={logout}>Logout</button>
+          <button style={{ padding: '0.45rem 1rem', borderRadius: 8, border: '1px solid #334155', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'inherit' }} onClick={() => { logout(); navigate('/login'); }}>Logout</button>
         </div>
       </header>
 

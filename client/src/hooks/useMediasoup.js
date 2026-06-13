@@ -311,6 +311,7 @@ export default function useMediasoup(socket, sessionId, userId, displayName, rol
     return () => {
       cancelled = true;
 
+      socket.off('newPeer', onNewPeer);
       socket.off('newProducer', onNewProducer);
       socket.off('producerClosed', onProducerClosed);
       socket.off('peerLeft', onPeerLeft);

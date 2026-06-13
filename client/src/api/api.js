@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+// In production, VITE_API_URL should point to the deployed server.
+// In development, Vite proxy handles /api requests.
 const api = axios.create({
-  baseURL: '/api'
+  baseURL: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api'
 });
 
 // Attach Authorization header from localStorage if token exists
@@ -14,6 +16,9 @@ api.interceptors.request.use((config) => {
 });
 
 export default api;
+
+// Export the server base URL for socket.io connections
+export const getServerUrl = () => import.meta.env.VITE_API_URL || '/';
 
 // ── Auth ────────────────────────────────────────
 export const login = (username, password) =>

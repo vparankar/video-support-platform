@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { endSession } from '../api/api';
+import { getServerUrl } from '../api/api';
 import useMediasoup from '../hooks/useMediasoup';
 import useChat from '../hooks/useChat';
 import VideoGrid from '../components/VideoGrid';
@@ -27,7 +28,7 @@ export default function CallRoom() {
   // useMemo with [] would reuse the disconnected socket after StrictMode unmount.
   const socketRef = useRef(null);
   if (!socketRef.current || socketRef.current.disconnected) {
-    socketRef.current = io('/', {
+    socketRef.current = io(getServerUrl(), {
       transports: ['polling', 'websocket'],
     });
   }

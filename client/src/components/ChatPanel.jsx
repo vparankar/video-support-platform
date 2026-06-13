@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { uploadFile } from '../api/api';
+import { getServerUrl } from '../api/api';
 
 /**
  * ChatPanel — scrollable message list + input bar with file sharing.
@@ -69,8 +70,11 @@ export default function ChatPanel({ messages, sendMessage, sendFileMessage, sess
     if (!fileUrl) return '#';
     // Already absolute
     if (fileUrl.startsWith('http')) return fileUrl;
-    // In production the same origin serves static files.
-    // In dev, the Vite proxy is only for /api — resolve against server origin.
+    // In production with a separate API server, prefix with the server URL
+    const serverUrl = getServerUrl();
+    if (serverUrl && serverUrl !== '/') {
+      return `${serverUrl}${fileUrl}`;
+    }
     return fileUrl;
   };
 

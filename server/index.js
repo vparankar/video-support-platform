@@ -12,8 +12,9 @@ const sessionRoutes = require('./routes/sessions');
 const app = express();
 const server = http.createServer(app);
 
-// Enable CORS
-app.use(cors({ origin: '*' }));
+// Enable CORS — restrict in production
+const corsOrigin = process.env.CLIENT_ORIGIN || '*';
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 
 // Ensure uploads directory exists
@@ -33,10 +34,22 @@ app.use('/uploads', express.static(uploadsDir));
 app.use('/api/auth', authRoutes);
 app.use('/api/sessions', sessionRoutes);
 
+// In production, serve the built React app
+if (process.env.NODE_ENV === 'production') {
+  const clientDist = path.join(__dirname, '..', 'client', 'dist');
+  if (fs.existsSync(clientDist)) {
+    app.use(express.static(clientDist));
+    // SPA fallback — serve index.html for any non-API/non-upload route
+    app.get(/^\/(?!api|uploads|socket\.io).*/, (req, res) => {
+      res.sendFile(path.join(clientDist, 'index.html'));
+    });
+  }
+}
+
 // Socket.io
 const io = new Server(server, {
   cors: {
-    origin: '*',
+    origin: corsOrigin,
     methods: ['GET', 'POST']
   }
 });

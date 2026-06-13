@@ -3,17 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getSessions, createSession, getSession } from '../api/api';
 
-function formatDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
+function formatDate(epoch) {
+  if (!epoch) return '—';
+  // SQLite stores timestamps as Unix epoch seconds — multiply by 1000 for JS Date
+  const d = new Date(epoch * 1000);
+  if (isNaN(d.getTime())) return '—';
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
     ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
 function duration(created, ended) {
-  const start = new Date(created);
-  const end = ended ? new Date(ended) : new Date();
-  const mins = Math.max(0, Math.round((end - start) / 60000));
+  if (!created) return '—';
+  const startMs = created * 1000;
+  const endMs = ended ? ended * 1000 : Date.now();
+  const mins = Math.max(0, Math.round((endMs - startMs) / 60000));
   if (mins < 60) return `${mins}m`;
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
@@ -177,9 +180,9 @@ export default function AgentDashboard() {
               <div style={{ maxHeight:350,overflowY:'auto',background:'#0f172a',borderRadius:8,padding:'1rem',marginBottom:'1rem',border:'1px solid #334155' }}>
                 {chatSession?.messages?.length > 0 ? chatSession.messages.map((msg, i) => (
                   <div key={i} style={{ marginBottom:'0.65rem',fontSize:'0.85rem',lineHeight:1.4 }}>
-                    <span style={{ fontWeight:600,color:'#818cf8',marginRight:'0.4rem' }}>{msg.sender_name || 'Unknown'}:</span>
+                    <span style={{ fontWeight:600,color:'#818cf8',marginRight:'0.4rem' }}>{msg.display_name || 'Unknown'}:</span>
                     <span style={{ color:'#cbd5e1' }}>{msg.content}</span>
-                    <span style={{ fontSize:'0.7rem',color:'#475569',marginLeft:'0.4rem' }}>{new Date(msg.created_at).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</span>
+                    <span style={{ fontSize:'0.7rem',color:'#475569',marginLeft:'0.4rem' }}>{new Date(msg.created_at * 1000).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</span>
                   </div>
                 )) : <div style={{ color:'#475569',textAlign:'center',padding:'1rem' }}>No messages in this session.</div>}
               </div>
