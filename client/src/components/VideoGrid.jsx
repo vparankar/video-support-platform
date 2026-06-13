@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, forwardRef } from 'react';
 
 /**
  * A single video tile — attaches stream to <video> via ref.
@@ -11,7 +11,6 @@ function VideoTile({ stream, label, muted, isOff, style, labelStyle }) {
     if (!el || !stream) return;
     el.srcObject = stream;
 
-    // When tracks are added/removed (e.g. camera toggle), re-attach
     const onTrackChange = () => {
       el.srcObject = null;
       el.srcObject = stream;
@@ -46,21 +45,33 @@ function VideoTile({ stream, label, muted, isOff, style, labelStyle }) {
 }
 
 /**
- * VideoGrid — WhatsApp-style 1-on-1 video call layout.
- * Remote video fills the view, local video is a small PiP overlay.
+ * VideoGrid — 1-on-1 video call layout with click-to-swap.
+ * Remote fills the view, local is a small PiP overlay.
+ * Clicking PiP swaps local↔remote.
  */
-export default function VideoGrid({ localStream, remoteStreams, isMuted, isVideoOff, localDisplayName }) {
+const VideoGrid = forwardRef(function VideoGrid({ localStream, remoteStreams, isMuted, isVideoOff, localDisplayName }, ref) {
   const remoteEntries = remoteStreams ? Array.from(remoteStreams.entries()) : [];
   const hasRemote = remoteEntries.length > 0;
 
-  // Draggable PiP state
+  const [swapped, setSwapped] = useState(false);
+
   const [pipPos, setPipPos] = useState({ x: 16, y: 16 });
   const dragging = useRef(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const containerRef = useRef(null);
+  const didDrag = useRef(false);
+
+  const setRefs = useCallback((node) => {
+    containerRef.current = node;
+    if (ref) {
+      if (typeof ref === 'function') ref(node);
+      else ref.current = node;
+    }
+  }, [ref]);
 
   const onPointerDown = useCallback((e) => {
     dragging.current = true;
+    didDrag.current = false;
     const rect = e.currentTarget.getBoundingClientRect();
     dragOffset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -68,8 +79,9 @@ export default function VideoGrid({ localStream, remoteStreams, isMuted, isVideo
 
   const onPointerMove = useCallback((e) => {
     if (!dragging.current || !containerRef.current) return;
+    didDrag.current = true;
     const bounds = containerRef.current.getBoundingClientRect();
-    const pipW = 140, pipH = 105;
+    const pipW = 180, pipH = 135;
     let x = e.clientX - bounds.left - dragOffset.current.x;
     let y = e.clientY - bounds.top - dragOffset.current.y;
     x = Math.max(8, Math.min(bounds.width - pipW - 8, x));
@@ -78,27 +90,43 @@ export default function VideoGrid({ localStream, remoteStreams, isMuted, isVideo
   }, []);
 
   const onPointerUp = useCallback(() => {
+    const wasDrag = didDrag.current;
     dragging.current = false;
+    didDrag.current = false;
+    if (!wasDrag) setSwapped(s => !s);
   }, []);
 
+  const remoteData = hasRemote ? remoteEntries[0] : null;
+  const bigStream = swapped ? localStream : remoteData?.[1]?.stream;
+  const bigLabel = swapped ? (localDisplayName || 'You') : remoteData?.[1]?.displayName;
+  const bigMuted = swapped;
+  const bigIsOff = swapped ? isVideoOff : remoteData?.[1]?.isVideoOff;
+  const pipStream = swapped ? remoteData?.[1]?.stream : localStream;
+  const pipLabel = swapped ? remoteData?.[1]?.displayName : 'You';
+  const pipMuted2 = !swapped;
+  const pipIsOff = swapped ? remoteData?.[1]?.isVideoOff : isVideoOff;
+
   return (
-    <div ref={containerRef} style={styles.container}>
-      {/* Remote video (full area) */}
+    <div ref={setRefs} style={styles.container}>
       {hasRemote ? (
-        (() => {
-          const [socketId, { stream, displayName, isVideoOff }] = remoteEntries[0];
-          return (
+        <div style={styles.remoteTile} onClick={() => swapped && setSwapped(false)}>
+          {bigIsOff ? (
+            <div style={styles.avatar}>
+              <span style={styles.avatarText}>{bigLabel?.charAt(0)?.toUpperCase() || '?'}</span>
+              <span style={styles.avatarName}>{bigLabel}</span>
+            </div>
+          ) : (
             <VideoTile
-              key={socketId}
-              stream={stream}
-              label={displayName}
-              muted={false}
-              isOff={isVideoOff}
-              style={styles.remoteTile}
+              stream={bigStream}
+              label={bigLabel}
+              muted={bigMuted}
+              isOff={false}
+              style={styles.fullInner}
               labelStyle={styles.remoteLabel}
             />
-          );
-        })()
+          )}
+          {bigIsOff && <div style={styles.remoteLabel}>{bigLabel}</div>}
+        </div>
       ) : (
         <div style={styles.waiting}>
           <div style={styles.waitingDot} />
@@ -106,40 +134,37 @@ export default function VideoGrid({ localStream, remoteStreams, isMuted, isVideo
         </div>
       )}
 
-      {/* Local PiP overlay */}
+      {/* PiP overlay */}
       <div
-        style={{
-          ...styles.pipTile,
-          left: pipPos.x,
-          top: pipPos.y,
-        }}
+        style={{ ...styles.pipTile, left: pipPos.x, top: pipPos.y }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       >
-        {isVideoOff ? (
+        {pipIsOff ? (
           <div style={styles.pipAvatar}>
             <span style={styles.pipAvatarText}>
-              {localDisplayName?.charAt(0)?.toUpperCase() || 'Y'}
+              {pipLabel?.charAt(0)?.toUpperCase() || 'Y'}
             </span>
           </div>
         ) : (
           <VideoTile
-            stream={localStream}
-            label="You"
-            muted
+            stream={pipStream}
+            label={pipLabel}
+            muted={pipMuted2}
             isOff={false}
             style={styles.pipInner}
             labelStyle={styles.pipLabel}
           />
         )}
-        {isVideoOff && <div style={styles.pipLabel}>You</div>}
+        {pipIsOff && <div style={styles.pipLabel}>{pipLabel}</div>}
       </div>
     </div>
   );
-}
+});
 
-// ── Inline styles ──────────────────────────────────
+export default VideoGrid;
+
 const styles = {
   container: {
     position: 'relative',
@@ -148,8 +173,6 @@ const styles = {
     background: '#0a0a0a',
     overflow: 'hidden',
   },
-
-  // Remote: fills entire area
   remoteTile: {
     position: 'absolute',
     inset: 0,
@@ -157,6 +180,12 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     background: '#111',
+    cursor: 'pointer',
+  },
+  fullInner: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
   },
   video: {
     width: '100%',
@@ -174,15 +203,13 @@ const styles = {
     fontSize: '0.85rem',
     fontWeight: 600,
   },
-
-  // Local PiP
   pipTile: {
     position: 'absolute',
-    width: 140,
-    height: 105,
+    width: 180,
+    height: 135,
     borderRadius: 12,
     overflow: 'hidden',
-    border: '2px solid rgba(255,255,255,0.2)',
+    border: '2px solid rgba(255,255,255,0.15)',
     boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
     cursor: 'grab',
     zIndex: 10,
@@ -225,8 +252,6 @@ const styles = {
     fontWeight: 700,
     color: '#111827',
   },
-
-  // Waiting state (no remote)
   waiting: {
     position: 'absolute',
     inset: 0,
@@ -248,8 +273,6 @@ const styles = {
     color: 'var(--text-muted)',
     fontSize: '0.9rem',
   },
-
-  // Avatar fallback (remote video off)
   avatar: {
     display: 'flex',
     flexDirection: 'column',

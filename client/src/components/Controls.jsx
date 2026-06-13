@@ -1,31 +1,19 @@
 /**
- * Controls — bottom toolbar for call actions.
- * Uses emoji icons to avoid any icon library dependency.
+ * Controls — floating pill overlay for call actions.
+ * Rendered as a translucent bar hovering over the video.
  */
 export default function Controls({
   isMuted,
   isVideoOff,
+  isScreenSharing,
   toggleMute,
   toggleVideo,
+  onToggleScreenShare,
   onEndCall,
   role,
-  onStartRecording,
-  onStopRecording,
   isRecording,
-  recordingStatus,
+  onToggleRecording,
 }) {
-  const isProcessing = recordingStatus === 'processing';
-
-  const handleHover = (e, isHovered, isActive, isEnd) => {
-    if (isEnd) {
-      e.currentTarget.style.background = isHovered ? '#b91c1c' : 'var(--red)';
-    } else if (isActive) {
-      e.currentTarget.style.background = isHovered ? 'var(--red-bg)' : 'var(--red-bg)';
-    } else {
-      e.currentTarget.style.background = isHovered ? 'var(--surface-raised)' : 'var(--bg)';
-    }
-  };
-
   return (
     <div style={styles.bar}>
       {/* Mic toggle */}
@@ -33,8 +21,6 @@ export default function Controls({
         style={{ ...styles.btn, ...(isMuted ? styles.btnActive : {}) }}
         onClick={toggleMute}
         title={isMuted ? 'Unmute' : 'Mute'}
-        onMouseEnter={(e) => handleHover(e, true, isMuted, false)}
-        onMouseLeave={(e) => handleHover(e, false, isMuted, false)}
       >
         {isMuted ? (
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -58,8 +44,6 @@ export default function Controls({
         style={{ ...styles.btn, ...(isVideoOff ? styles.btnActive : {}) }}
         onClick={toggleVideo}
         title={isVideoOff ? 'Turn camera on' : 'Turn camera off'}
-        onMouseEnter={(e) => handleHover(e, true, isVideoOff, false)}
-        onMouseLeave={(e) => handleHover(e, false, isVideoOff, false)}
       >
         {isVideoOff ? (
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -75,15 +59,35 @@ export default function Controls({
         )}
       </button>
 
+      {/* Screen share (hidden on devices without getDisplayMedia, e.g. phones) */}
+      {navigator.mediaDevices?.getDisplayMedia && (
+        <button
+          style={{ ...styles.btn, ...(isScreenSharing ? styles.btnScreenShare : {}) }}
+          onClick={onToggleScreenShare}
+          title={isScreenSharing ? 'Stop sharing' : 'Share screen'}
+        >
+          {isScreenSharing ? (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="2" y1="2" x2="22" y2="22" />
+              <path d="M17 3H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z" />
+              <line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+            </svg>
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+              <line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+            </svg>
+          )}
+        </button>
+      )}
+
       {/* End call */}
       <button
         style={{ ...styles.btn, ...styles.endBtn }}
         onClick={onEndCall}
         title="End Call"
-        onMouseEnter={(e) => handleHover(e, true, false, true)}
-        onMouseLeave={(e) => handleHover(e, false, false, true)}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(135deg)', color: '#FFFFFF' }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'rotate(135deg)', color: '#fff' }}>
           <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 2.6 3.4" />
         </svg>
       </button>
@@ -91,55 +95,44 @@ export default function Controls({
       {/* Record (agent only) */}
       {role === 'agent' && (
         <button
-          style={{
-            ...styles.btn,
-            ...(isRecording ? styles.recording : {}),
-            ...(isProcessing ? styles.processing : {}),
-          }}
-          onClick={isProcessing ? undefined : (isRecording ? onStopRecording : onStartRecording)}
-          title={isProcessing ? 'Processing…' : isRecording ? 'Stop Recording' : 'Start Recording'}
-          disabled={isProcessing}
+          style={{ ...styles.btn, ...(isRecording ? styles.recording : {}) }}
+          onClick={onToggleRecording}
+          title={isRecording ? 'Stop Recording' : 'Start Recording'}
         >
-          {isProcessing ? (
-            <svg style={{ animation: 'spin 1s linear infinite', color: 'var(--amber)' }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="2" x2="12" y2="6" />
-              <line x1="12" y1="18" x2="12" y2="22" />
-              <line x1="4.93" y1="4.93" x2="7.76" y2="7.76" />
-              <line x1="16.24" y1="16.24" x2="19.07" y2="19.07" />
-              <line x1="2" y1="12" x2="6" y2="12" />
-              <line x1="18" y1="12" x2="22" y2="12" />
-              <line x1="4.93" y1="19.07" x2="7.76" y2="16.24" />
-              <line x1="16.24" y1="7.76" x2="19.07" y2="4.93" />
-            </svg>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--red)' }}>
-              <circle cx="12" cy="12" r="10" />
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: isRecording ? '#fff' : 'var(--red)' }}>
+            <circle cx="12" cy="12" r="10" />
+            {isRecording ? (
+              <rect x="9" y="9" width="6" height="6" fill="currentColor" rx="1" />
+            ) : (
               <circle cx="12" cy="12" r="3" fill="currentColor" />
-            </svg>
-          )}
+            )}
+          </svg>
         </button>
       )}
     </div>
   );
 }
 
-// ── Inline styles ──────────────────────────────────
 const styles = {
   bar: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
-    padding: '14px 0',
-    background: 'var(--surface)',
-    borderTop: '1px solid var(--border)',
+    gap: 10,
+    padding: '10px 18px',
+    background: 'rgba(0, 0, 0, 0.55)',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    borderRadius: 50,
+    border: '1px solid rgba(255,255,255,0.1)',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
   },
   btn: {
     width: 46,
     height: 46,
-    borderRadius: 'var(--radius)',
-    border: '1px solid var(--border-strong)',
-    background: 'var(--bg)',
+    borderRadius: '50%',
+    border: '1px solid rgba(255,255,255,0.15)',
+    background: 'rgba(255,255,255,0.08)',
+    color: '#fff',
     fontSize: '1.25rem',
     cursor: 'pointer',
     display: 'flex',
@@ -148,22 +141,22 @@ const styles = {
     transition: 'background 0.2s, transform 0.15s',
   },
   btnActive: {
-    background: 'var(--red-bg)',
-    border: '1px solid var(--red-border)',
+    background: 'rgba(239, 68, 68, 0.35)',
+    border: '1px solid rgba(239, 68, 68, 0.5)',
   },
   endBtn: {
-    background: 'var(--red)',
+    background: '#ef4444',
     border: 'none',
+    width: 52,
+    height: 52,
   },
   recording: {
     animation: 'pulse 1.2s infinite',
-    background: 'var(--red-bg)',
-    border: '1px solid var(--red)',
+    background: 'rgba(239, 68, 68, 0.6)',
+    border: '1px solid rgba(239, 68, 68, 0.8)',
   },
-  processing: {
-    opacity: 0.6,
-    cursor: 'not-allowed',
-    background: 'var(--amber-bg)',
-    border: '1px solid var(--amber)',
+  btnScreenShare: {
+    background: 'rgba(59, 130, 246, 0.35)',
+    border: '1px solid rgba(59, 130, 246, 0.5)',
   },
 };

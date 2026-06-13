@@ -78,3 +78,16 @@ export const uploadFile = (sessionId, file) => {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 };
+
+// ── Admin ────────────────────────────────────────
+export const getAdminSessionHistory = () =>
+  api.get('/sessions/admin/history');
+
+export const getSessionEventLog = (id) =>
+  api.get(`/sessions/admin/sessions/${id}/events`);
+
+export const getAdminStats = () =>
+  api.get('/sessions/admin/stats');
+
+export const getMetrics = () =>
+  api.get('/metrics');

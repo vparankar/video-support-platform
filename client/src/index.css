@@ -1245,3 +1245,8 @@ body {
   0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(239,68,68,0.5); }
   50% { opacity: 0.4; box-shadow: 0 0 12px rgba(239,68,68,0.8); }
 }
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}

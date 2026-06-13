@@ -21,6 +21,7 @@ export default function useMediasoup(socket, sessionId, userId, displayName, rol
   const [error, setError] = useState(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   // ── Internal refs ─────────────────────────────────
   const deviceRef = useRef(null);
@@ -400,6 +401,66 @@ export default function useMediasoup(socket, sessionId, userId, displayName, rol
     }
   }, [socket, sessionId]);
 
+  const toggleScreenShare = useCallback(async () => {
+    const producer = producersRef.current.get('video');
+    if (!producer) return;
+
+    if (isScreenSharing) {
+      // Restore camera
+      try {
+        const camStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const camTrack = camStream.getVideoTracks()[0];
+        await producer.replaceTrack({ track: camTrack });
+        const ls = localStreamRef.current;
+        if (ls) {
+          const old = ls.getVideoTracks()[0];
+          if (old) { ls.removeTrack(old); old.stop(); }
+          ls.addTrack(camTrack);
+        }
+        setIsScreenSharing(false);
+        setIsVideoOff(false);
+        socket.emit('toggleVideoState', { sessionId, isVideoOff: false });
+      } catch (err) {
+        console.error('[useMediasoup] Failed to restore camera:', err);
+      }
+    } else {
+      // Start screen share
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const screenTrack = screenStream.getVideoTracks()[0];
+        await producer.replaceTrack({ track: screenTrack });
+        if (producer.paused) producer.resume();
+        const ls = localStreamRef.current;
+        if (ls) {
+          const old = ls.getVideoTracks()[0];
+          if (old) { ls.removeTrack(old); old.stop(); }
+          ls.addTrack(screenTrack);
+        }
+        setIsScreenSharing(true);
+        setIsVideoOff(false);
+        socket.emit('toggleVideoState', { sessionId, isVideoOff: false });
+
+        // Handle browser's native "Stop sharing" button
+        screenTrack.onended = async () => {
+          try {
+            const camStream2 = await navigator.mediaDevices.getUserMedia({ video: true });
+            const camTrack2 = camStream2.getVideoTracks()[0];
+            await producer.replaceTrack({ track: camTrack2 });
+            const ls2 = localStreamRef.current;
+            if (ls2) {
+              const old2 = ls2.getVideoTracks()[0];
+              if (old2) { ls2.removeTrack(old2); old2.stop(); }
+              ls2.addTrack(camTrack2);
+            }
+          } catch {}
+          setIsScreenSharing(false);
+        };
+      } catch (err) {
+        console.error('[useMediasoup] Screen share cancelled/failed:', err);
+      }
+    }
+  }, [isScreenSharing, socket, sessionId]);
+
   return {
     localStream,
     remoteStreams,
@@ -407,7 +468,9 @@ export default function useMediasoup(socket, sessionId, userId, displayName, rol
     error,
     isMuted,
     isVideoOff,
+    isScreenSharing,
     toggleMute,
     toggleVideo,
+    toggleScreenShare,
   };
 }
