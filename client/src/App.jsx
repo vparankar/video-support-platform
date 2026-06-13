@@ -3,32 +3,37 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import AgentDashboard from './pages/AgentDashboard';
 import AdminDashboard from './pages/AdminDashboard';
-
-// Placeholder pages — will be implemented later
-function CallRoom() {
-  return <div style={{ minHeight: '100vh', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f1f5f9', fontSize: '1.25rem' }}>Call Room — coming soon</div>;
-}
-
-function JoinPage() {
-  return <div style={{ minHeight: '100vh', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f1f5f9', fontSize: '1.25rem' }}>Join Page — coming soon</div>;
-}
+import CallRoom from './pages/CallRoom';
+import JoinPage from './pages/JoinPage';
 
 // ── Route guards ───────────────────────────────
 function ProtectedRoute({ children, roles }) {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (roles && !roles.includes(user?.role)) return <Navigate to="/dashboard" replace />;
+  if (roles && !roles.includes(user?.role)) {
+    // Customer trying to access agent/admin pages → log them out
+    // (temp customers shouldn't be on dashboard)
+    logout();
+    return <Navigate to="/login" replace />;
+  }
   return children;
 }
 
 function RootRedirect() {
-  const { isAuthenticated } = useAuth();
-  return <Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />;
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  // Only agents/admins have a dashboard; customers shouldn't land here
+  if (user?.role === 'agent' || user?.role === 'admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <Navigate to="/login" replace />;
 }
 
 function LoginGuard() {
-  const { isAuthenticated } = useAuth();
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  const { isAuthenticated, user } = useAuth();
+  if (isAuthenticated && (user?.role === 'agent' || user?.role === 'admin')) {
+    return <Navigate to="/dashboard" replace />;
+  }
   return <Login />;
 }
 

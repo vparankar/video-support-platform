@@ -19,8 +19,8 @@ export default api;
 export const login = (username, password) =>
   api.post('/auth/login', { username, password });
 
-export const register = (username, password) =>
-  api.post('/auth/register', { username, password });
+export const register = (username, password, role = 'customer') =>
+  api.post('/auth/register', { username, password, role });
 
 // ── Sessions ────────────────────────────────────
 export const createSession = (title) =>

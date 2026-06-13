@@ -21,6 +21,10 @@ const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
 }
+const recordingsDir = path.join(uploadsDir, 'recordings');
+if (!fs.existsSync(recordingsDir)) {
+  fs.mkdirSync(recordingsDir, { recursive: true });
+}
 
 // Serve static uploads
 app.use('/uploads', express.static(uploadsDir));

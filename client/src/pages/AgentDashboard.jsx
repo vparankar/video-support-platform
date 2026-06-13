@@ -124,7 +124,17 @@ export default function AgentDashboard() {
                   <td style={td}>{duration(sess.created_at, sess.ended_at)}</td>
                   <td style={{ ...td,borderRadius:'0 10px 10px 0' }}>
                     {(sess.status === 'active' || sess.status === 'waiting') && <button style={actionBtn} onClick={() => navigate(`/room/${sess.id}`)}>Join Call</button>}
-                    {sess.status === 'ended' && <button style={viewBtn} onClick={() => handleViewRecord(sess.id)}>View Record</button>}
+                    {sess.status === 'ended' && <>
+                      <button style={viewBtn} onClick={() => handleViewRecord(sess.id)}>View Record</button>
+                      <a
+                        href={`/uploads/recordings/${sess.id}.mp4`}
+                        download
+                        style={{ ...viewBtn, display: 'inline-block', textDecoration: 'none', color: '#6ee7b7', borderColor: 'rgba(34,197,94,0.3)', marginLeft: '0.4rem' }}
+                        title="Download call recording"
+                      >
+                        🎬 Recording
+                      </a>
+                    </>}
                   </td>
                 </tr>
               ))}

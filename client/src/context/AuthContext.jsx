@@ -1,25 +1,20 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { login as apiLogin } from '../api/api';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-
-  // Restore session from localStorage on mount
-  useEffect(() => {
-    const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch {
-        localStorage.removeItem('user');
-      }
+  // Read localStorage synchronously so auth state is available on the first render.
+  // Using useEffect for this caused a race: ProtectedRoute would redirect to /login
+  // before the effect could run and populate the state.
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('user');
+    if (saved) {
+      try { return JSON.parse(saved); } catch { localStorage.removeItem('user'); }
     }
-  }, []);
+    return null;
+  });
+  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
 
   const login = async (username, password) => {
     const res = await apiLogin(username, password);

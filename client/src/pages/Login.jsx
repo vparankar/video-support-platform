@@ -76,7 +76,7 @@ const styles = {
     fontFamily: 'inherit',
   },
   inputFocused: {
-    borderColor: '#6366f1',
+    border: '1px solid #6366f1',
     boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.15)',
   },
   fieldGroup: {
