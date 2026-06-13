@@ -6,16 +6,37 @@ const { Server } = require('socket.io');
 const path = require('path');
 const fs = require('fs');
 
+const rateLimit = require('express-rate-limit');
 const authRoutes = require('./routes/auth');
 const sessionRoutes = require('./routes/sessions');
 
 const app = express();
 const server = http.createServer(app);
 
+// Trust proxy (required for express-rate-limit when using ngrok)
+app.set('trust proxy', 1);
+
 // Enable CORS — restrict in production
 const corsOrigin = process.env.CLIENT_ORIGIN || '*';
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
+
+// ── Rate limiting ──────────────────────────────────
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20,                   // 20 attempts per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts, please try again later' },
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,       // 1 minute
+  max: 60,                   // 60 requests per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please slow down' },
+});
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -31,8 +52,37 @@ if (!fs.existsSync(recordingsDir)) {
 app.use('/uploads', express.static(uploadsDir));
 
 // Mount routes
-app.use('/api/auth', authRoutes);
-app.use('/api/sessions', sessionRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/sessions', apiLimiter, sessionRoutes);
+
+// ── Observability endpoint ─────────────────────────
+const { verifyToken, verifyRole } = require('./middleware/authMiddleware');
+const models = require('./db/models');
+const serverStartTime = Date.now();
+
+app.get('/api/metrics', verifyToken, verifyRole('admin'), (req, res) => {
+  try {
+    const dbMetrics = models.getMetrics();
+    res.json({
+      ...dbMetrics,
+      uptimeSeconds: Math.floor((Date.now() - serverStartTime) / 1000),
+      memoryUsageMB: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      nodeVersion: process.version,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('Metrics error:', err);
+    res.status(500).json({ error: 'Failed to fetch metrics' });
+  }
+});
+
+// ── Periodic temp customer cleanup (every 6 hours) ─
+setInterval(() => {
+  try {
+    const deleted = models.cleanupTempCustomers(86400); // older than 24h
+    if (deleted > 0) console.log(`[cleanup] Removed ${deleted} temp customer accounts`);
+  } catch {}
+}, 6 * 60 * 60 * 1000);
 
 // In production, serve the built React app
 if (process.env.NODE_ENV === 'production') {
@@ -73,6 +123,20 @@ try {
 } catch (err) {
   console.warn('Socket signaling handlers could not be loaded. Assuming they will be created later.', err.message);
 }
+
+// ── Graceful shutdown handling for media recording processes ──
+const recorder = require('./mediasoup/recorder');
+function gracefulShutdown(signal) {
+  console.log(`Received ${signal}. Shutting down gracefully...`);
+  try {
+    recorder.cleanup();
+  } catch (err) {
+    console.error('Error during recorder cleanup:', err);
+  }
+  process.exit(0);
+}
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {

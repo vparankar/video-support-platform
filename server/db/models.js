@@ -94,6 +94,34 @@ const getAllSessions = () => {
   return db.prepare("SELECT * FROM sessions ORDER BY created_at DESC").all();
 };
 
+// Delete temp customer accounts older than the given age (seconds)
+const cleanupTempCustomers = (maxAgeSeconds = 86400) => {
+  const cutoff = Math.floor(Date.now() / 1000) - maxAgeSeconds;
+  // Temp customers have usernames like "Name_1718270000000"
+  const stmt = db.prepare(
+    "DELETE FROM users WHERE role = 'customer' AND created_at < ? AND username LIKE '%_%'"
+  );
+  const result = stmt.run(cutoff);
+  return result.changes;
+};
+
+// Metrics for observability endpoint
+const getMetrics = () => {
+  const activeSessions = db.prepare("SELECT COUNT(*) as count FROM sessions WHERE status = 'active'").get().count;
+  const waitingSessions = db.prepare("SELECT COUNT(*) as count FROM sessions WHERE status = 'waiting'").get().count;
+  const totalSessions = db.prepare("SELECT COUNT(*) as count FROM sessions").get().count;
+  const totalUsers = db.prepare("SELECT COUNT(*) as count FROM users").get().count;
+  const totalMessages = db.prepare("SELECT COUNT(*) as count FROM messages").get().count;
+  const activeParticipants = db.prepare("SELECT COUNT(*) as count FROM participants WHERE left_at IS NULL").get().count;
+  return { activeSessions, waitingSessions, totalSessions, totalUsers, totalMessages, activeParticipants };
+};
+
+const isParticipant = (sessionId, userId) => {
+  if (!userId) return false;
+  const row = db.prepare('SELECT 1 FROM participants WHERE session_id = ? AND user_id = ?').get(sessionId, userId);
+  return !!row;
+};
+
 module.exports = {
   createUser,
   getUserByUsername,
@@ -108,5 +136,8 @@ module.exports = {
   getMessages,
   getAgentSessions,
   getAllActiveSessions,
-  getAllSessions
+  getAllSessions,
+  cleanupTempCustomers,
+  getMetrics,
+  isParticipant
 };

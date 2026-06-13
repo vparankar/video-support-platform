@@ -41,7 +41,7 @@ const upload = multer({
 });
 
 // Get agent sessions or all sessions for admin
-router.get('/', verifyToken, (req, res) => {
+router.get('/', verifyToken, verifyRole('agent', 'admin'), (req, res) => {
   try {
     let sessions;
     if (req.user.role === 'admin') {
@@ -108,6 +108,14 @@ router.get('/:id', verifyToken, (req, res) => {
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
     }
+
+    const isAgentCreator = req.user.role === 'agent' && session.created_by === req.user.id;
+    const isAuthorizedParticipant = req.user.role === 'customer' && models.isParticipant(session.id, req.user.id);
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isAdmin && !isAgentCreator && !isAuthorizedParticipant) {
+      return res.status(403).json({ error: 'Access denied: not authorized to view this session' });
+    }
     
     session.messages = models.getMessages(session.id);
     session.participants = require('../db/database').prepare("SELECT * FROM participants WHERE session_id = ?").all(session.id);
@@ -121,6 +129,24 @@ router.get('/:id', verifyToken, (req, res) => {
 
 // Upload file to session
 router.post('/:id/upload', verifyToken, (req, res) => {
+  // Verify authorization BEFORE processing file upload to prevent disk space exhaustion/DoS
+  try {
+    const session = models.getSessionById(req.params.id);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const isAgentCreator = req.user.role === 'agent' && session.created_by === req.user.id;
+    const isAuthorizedParticipant = req.user.role === 'customer' && models.isParticipant(session.id, req.user.id);
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isAdmin && !isAgentCreator && !isAuthorizedParticipant) {
+      return res.status(403).json({ error: 'Access denied: not authorized to upload files for this session' });
+    }
+  } catch (err) {
+    return res.status(500).json({ error: 'Authorization check failed' });
+  }
+
   upload.single('file')(req, res, (err) => {
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') {
@@ -136,11 +162,6 @@ router.post('/:id/upload', verifyToken, (req, res) => {
     }
 
     try {
-      const session = models.getSessionById(req.params.id);
-      if (!session) {
-        return res.status(404).json({ error: 'Session not found' });
-      }
-
       const fileUrl = `/uploads/${req.file.filename}`;
       const fileName = req.file.originalname;
 

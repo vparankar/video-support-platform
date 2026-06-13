@@ -61,13 +61,22 @@ class SfuManager {
       room.peers.set(socketId, peer);
     }
 
+    const listenIps = [
+      {
+        ip: '127.0.0.1',
+        announcedIp: '127.0.0.1'
+      }
+    ];
+
+    if (process.env.ANNOUNCED_IP && process.env.ANNOUNCED_IP !== '127.0.0.1') {
+      listenIps.push({
+        ip: '0.0.0.0',
+        announcedIp: process.env.ANNOUNCED_IP
+      });
+    }
+
     const transport = await room.router.createWebRtcTransport({
-      listenIps: [
-        {
-          ip: '0.0.0.0',
-          announcedIp: process.env.ANNOUNCED_IP || '127.0.0.1'
-        }
-      ],
+      listenIps,
       enableUdp: true,
       enableTcp: true,
       preferUdp: true,

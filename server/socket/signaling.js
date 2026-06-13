@@ -11,18 +11,45 @@ function initSocketHandlers(io, sfuManager) {
   // sessionId -> { timeoutId, oldSocketId }
   const pendingAgentDisconnects = new Map();
 
+  const checkSocketRoom = (socket, sessionId) => {
+    const peerInfo = peerMap.get(socket.id);
+    if (!peerInfo || peerInfo.sessionId !== sessionId) {
+      throw new Error('Unauthorized room operation');
+    }
+    return peerInfo;
+  };
+
   io.on('connection', (socket) => {
     // Initialize chat handlers
     initChatHandlers(io, socket, peerMap);
 
-    socket.on('joinRoom', async ({ sessionId, displayName, role, userId, token }, callback) => {
+    socket.on('joinRoom', async ({ sessionId, token }, callback) => {
       try {
-        if (role !== 'customer') {
-          if (!token) {
-            throw new Error('Token required for agents');
-          }
-          jwt.verify(token, process.env.JWT_SECRET);
+        if (!token) {
+          throw new Error('Authentication token required');
+        }
 
+        // ── Verify JWT & extract verified parameters ──
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const userId = decoded.id;
+        const displayName = decoded.username;
+        const role = decoded.role;
+
+        // ── Validate session exists and is not ended ──
+        const session = models.getSessionById(sessionId);
+        if (!session) {
+          throw new Error('Session not found');
+        }
+        if (session.status === 'ended') {
+          throw new Error('Session has already ended');
+        }
+
+        // Verify agent ownership to prevent cross-agent session joining
+        if (role === 'agent' && session.created_by !== userId) {
+          throw new Error('Not authorized to join this session as agent');
+        }
+
+        if (role !== 'customer') {
           // If agent reconnects during the grace period
           if (pendingAgentDisconnects.has(sessionId)) {
             const { timeoutId, oldSocketId } = pendingAgentDisconnects.get(sessionId);
@@ -36,9 +63,19 @@ function initSocketHandlers(io, sfuManager) {
             // Notify the room
             socket.to(sessionId).emit('agentReconnected');
           }
-        } else {
-          if (!displayName) {
-            throw new Error('Display name required for customers');
+        }
+
+        // ── Duplicate-join prevention ──
+        // If this userId is already connected to this session, evict the old socket
+        if (userId) {
+          for (const [existingSocketId, info] of peerMap.entries()) {
+            if (info.sessionId === sessionId && info.userId === userId && existingSocketId !== socket.id) {
+              sfuManager.closePeer(sessionId, existingSocketId);
+              io.to(existingSocketId).emit('duplicateSession', { message: 'You joined from another tab/device' });
+              const oldSocket = io.sockets.sockets.get(existingSocketId);
+              if (oldSocket) oldSocket.leave(sessionId);
+              peerMap.delete(existingSocketId);
+            }
           }
         }
 
@@ -47,6 +84,11 @@ function initSocketHandlers(io, sfuManager) {
         peerMap.set(socket.id, { sessionId, displayName, role, userId });
 
         socket.join(sessionId);
+
+        // Add to participants table if customer
+        if (role === 'customer') {
+          models.addParticipant(sessionId, displayName, role, userId);
+        }
 
         const existingProducers = sfuManager.getRoomProducers(sessionId, socket.id);
 
@@ -65,6 +107,7 @@ function initSocketHandlers(io, sfuManager) {
 
     socket.on('getRouterRtpCapabilities', async ({ sessionId }, callback) => {
       try {
+        checkSocketRoom(socket, sessionId);
         const room = await sfuManager.getOrCreateRoom(sessionId);
         if (typeof callback === 'function') {
           callback({ rtpCapabilities: room.router.rtpCapabilities });
@@ -79,6 +122,7 @@ function initSocketHandlers(io, sfuManager) {
 
     socket.on('createWebRtcTransport', async ({ sessionId, direction }, callback) => {
       try {
+        checkSocketRoom(socket, sessionId);
         const result = await sfuManager.createWebRtcTransport(sessionId, socket.id);
         if (typeof callback === 'function') {
           callback(result);
@@ -93,6 +137,7 @@ function initSocketHandlers(io, sfuManager) {
 
     socket.on('connectWebRtcTransport', async ({ sessionId, transportId, dtlsParameters }, callback) => {
       try {
+        checkSocketRoom(socket, sessionId);
         await sfuManager.connectTransport(sessionId, socket.id, transportId, dtlsParameters);
         if (typeof callback === 'function') {
           callback({ transportId });
@@ -107,6 +152,7 @@ function initSocketHandlers(io, sfuManager) {
 
     socket.on('produce', async ({ sessionId, transportId, kind, rtpParameters, appData }, callback) => {
       try {
+        checkSocketRoom(socket, sessionId);
         const producerId = await sfuManager.produce(sessionId, socket.id, transportId, kind, rtpParameters, appData);
 
         socket.to(sessionId).emit('newProducer', {
@@ -129,6 +175,12 @@ function initSocketHandlers(io, sfuManager) {
 
     socket.on('consume', async ({ sessionId, producerId, producerSocketId, rtpCapabilities }, callback) => {
       try {
+        checkSocketRoom(socket, sessionId);
+        // Verify producer belongs to the same session
+        const producerPeer = peerMap.get(producerSocketId);
+        if (!producerPeer || producerPeer.sessionId !== sessionId) {
+          throw new Error('Producer is not in the same session');
+        }
         const consumerParams = await sfuManager.consume(sessionId, socket.id, producerSocketId, producerId, rtpCapabilities);
         if (typeof callback === 'function') {
           callback(consumerParams);
@@ -143,6 +195,7 @@ function initSocketHandlers(io, sfuManager) {
 
     socket.on('resumeConsumer', async ({ sessionId, consumerId }) => {
       try {
+        checkSocketRoom(socket, sessionId);
         const room = await sfuManager.getOrCreateRoom(sessionId);
         const peer = room.peers.get(socket.id);
         if (peer) {
@@ -158,6 +211,7 @@ function initSocketHandlers(io, sfuManager) {
 
     socket.on('producerClosed', ({ sessionId, producerId }) => {
       try {
+        checkSocketRoom(socket, sessionId);
         sfuManager.closeProducer(sessionId, socket.id, producerId);
         socket.to(sessionId).emit('producerClosed', { producerId, producerSocketId: socket.id });
       } catch (error) {
@@ -167,19 +221,20 @@ function initSocketHandlers(io, sfuManager) {
 
     socket.on('endSession', ({ sessionId }) => {
       try {
-        const peerInfo = peerMap.get(socket.id);
-        if (peerInfo && peerInfo.sessionId === sessionId) {
-          // Note: DB status is already updated by the REST PUT /:id/end route.
-          // This handler only broadcasts the event and cleans up pending disconnects.
-          io.to(sessionId).emit('sessionEnded');
+        const peerInfo = checkSocketRoom(socket, sessionId);
+        if (peerInfo.role === 'customer') {
+          throw new Error('Only agents can end the session');
+        }
+        // Note: DB status is already updated by the REST PUT /:id/end route.
+        // This handler only broadcasts the event and cleans up pending disconnects.
+        io.to(sessionId).emit('sessionEnded');
 
-          if (pendingAgentDisconnects.has(sessionId)) {
-            const { timeoutId, oldSocketId } = pendingAgentDisconnects.get(sessionId);
-            clearTimeout(timeoutId);
-            sfuManager.closePeer(sessionId, oldSocketId);
-            peerMap.delete(oldSocketId);
-            pendingAgentDisconnects.delete(sessionId);
-          }
+        if (pendingAgentDisconnects.has(sessionId)) {
+          const { timeoutId, oldSocketId } = pendingAgentDisconnects.get(sessionId);
+          clearTimeout(timeoutId);
+          sfuManager.closePeer(sessionId, oldSocketId);
+          peerMap.delete(oldSocketId);
+          pendingAgentDisconnects.delete(sessionId);
         }
       } catch (error) {
         console.error('endSession error:', error);
@@ -189,8 +244,8 @@ function initSocketHandlers(io, sfuManager) {
     // ── Recording (agent only) ──────────────────────
     socket.on('startRecording', async ({ sessionId }, callback) => {
       try {
-        const peerInfo = peerMap.get(socket.id);
-        if (!peerInfo || peerInfo.role === 'customer') {
+        const peerInfo = checkSocketRoom(socket, sessionId);
+        if (peerInfo.role === 'customer') {
           throw new Error('Only agents can start recording');
         }
 
@@ -227,28 +282,49 @@ function initSocketHandlers(io, sfuManager) {
 
     socket.on('stopRecording', async ({ sessionId }, callback) => {
       try {
-        const peerInfo = peerMap.get(socket.id);
-        if (!peerInfo || peerInfo.role === 'customer') {
+        const peerInfo = checkSocketRoom(socket, sessionId);
+        if (peerInfo.role === 'customer') {
           throw new Error('Only agents can stop recording');
         }
-
-        const result = recorder.stopRecording(sessionId);
 
         // Notify participants recording is processing
         io.to(sessionId).emit('recordingStatus', { status: 'processing' });
 
-        // After a short delay, emit the download URL
-        setTimeout(() => {
-          const downloadUrl = `/uploads/recordings/${sessionId}.mp4`;
-          io.to(sessionId).emit('recordingReady', { downloadUrl });
-          io.to(sessionId).emit('recordingStatus', { status: 'ready' });
-        }, 2000);
+        // Await FFmpeg exit so the file is fully written before we serve it
+        const result = await recorder.stopRecording(sessionId);
 
         if (typeof callback === 'function') {
           callback({ filePath: result?.filePath || null });
         }
+
+        const fs = require('fs');
+        const expectedPath = require('path').join(
+          __dirname, '..', 'uploads', 'recordings', `${sessionId}.mp4`
+        );
+
+        // Check file exists AND has actual content (> 0 bytes)
+        let fileOk = false;
+        if (result?.filePath && fs.existsSync(expectedPath)) {
+          const stat = fs.statSync(expectedPath);
+          fileOk = stat.size > 0;
+          console.log(`[stopRecording] File at ${expectedPath} — size: ${stat.size} bytes`);
+        }
+
+        if (fileOk) {
+          const downloadUrl = `/uploads/recordings/${sessionId}.mp4`;
+          io.to(sessionId).emit('recordingReady', { downloadUrl });
+          io.to(sessionId).emit('recordingStatus', { status: 'ready' });
+          console.log(`[stopRecording] File ready at ${expectedPath}`);
+        } else {
+          console.error(`[stopRecording] File NOT found or empty at ${expectedPath}`);
+          io.to(sessionId).emit('recordingStatus', { status: 'error' });
+          io.to(sessionId).emit('recordingError', {
+            message: 'Recording file was not created. Ensure a call is active with media streams before recording.',
+          });
+        }
       } catch (error) {
         console.error('stopRecording error:', error);
+        io.to(sessionId).emit('recordingStatus', { status: 'error' });
         if (typeof callback === 'function') {
           callback({ error: error.message });
         }
@@ -261,6 +337,7 @@ function initSocketHandlers(io, sfuManager) {
         const { sessionId, displayName, role } = peerInfo;
         
         if (role === 'customer') {
+          models.removeParticipant(sessionId, displayName);
           sfuManager.closePeer(sessionId, socket.id);
           socket.to(sessionId).emit('peerLeft', { socketId: socket.id, displayName });
           peerMap.delete(socket.id);
